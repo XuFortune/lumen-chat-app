@@ -1,0 +1,15 @@
+{
+    "compilerOptions": {
+        "target": "ES2020", // 编译成较新的 JS 版本
+        "module": "CommonJS", // Node.js 使用的模块系统
+        "rootDir": "./src", // TypeScript 源文件根目录
+        "outDir": "./dist", // 编译后输出的 JS 文件目录
+        "esModuleInterop": true, // 允许 import default from '...' 语法
+        "forceConsistentCasingInFileNames": true,
+        "strict": true, // 开启所有严格类型检查选项
+        "skipLibCheck": true
+    },
+    "include": [
+        "src/**/*"
+    ] // 只编译 src 目录下的文件
+}
