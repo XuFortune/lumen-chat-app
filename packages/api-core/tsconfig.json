@@ -1,5 +1,8 @@
 {
     "compilerOptions": {
+        "types": [
+            "node"
+        ],
         "target": "ES2020", // 编译成较新的 JS 版本
         "module": "CommonJS", // Node.js 使用的模块系统
         "rootDir": "./src", // TypeScript 源文件根目录
