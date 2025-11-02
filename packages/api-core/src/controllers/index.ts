@@ -1,1 +1,2 @@
-export { createUser } from './AuthController'
+export * from './AuthController'
+export * from './UserController'
