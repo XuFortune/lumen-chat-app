@@ -1,10 +1,13 @@
 {
   "name": "ai-engine",
   "version": "1.0.0",
-  "description": "",
+  "description": "AI Engine Service for Lumen",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
+    "start": "node dist/index.js"
   },
   "keywords": [],
   "author": "",

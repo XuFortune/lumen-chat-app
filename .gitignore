@@ -1,2 +1,23 @@
-node_modules
+# Dependencies
+node_modules/
+
+# Environment
 .env
+.env.local
+*.env.*
+
+# Sensitive docs
+PRD.md
+TRACKER.md
+list-structure.js
+LIST_STRUECTURE.md
+# Docker
+docker-compose.yml
+docker-compose.override.yml
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*~
+LIST_STRUCTURE.md

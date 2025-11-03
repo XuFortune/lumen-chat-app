@@ -1,0 +1,10 @@
+// packages/ai-engine/tsconfig.json
+{
+    "extends": "../api-core/tsconfig.json",
+    "compilerOptions": {
+        "rootDir": "./src"
+    },
+    "include": [
+        "src/**/*"
+    ]
+}
