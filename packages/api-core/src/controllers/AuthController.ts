@@ -15,7 +15,8 @@ export const createUser = async (req: Request, res: Response) => {
             password: hashedPassword,
             llm_configs: llm_configs || null
         })
-        return res.status(201).json(success(user, '用户创建成功'))
+        const { password: _, ...safeUser } = user.toJSON()
+        return res.status(201).json(success(safeUser, '用户创建成功'))
     } catch (error: any) {
         if (error.name === 'SequelizeUniqueConstraintError') {
             return res.status(409).json(
