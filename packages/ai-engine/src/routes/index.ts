@@ -1,4 +1,4 @@
-import { createAiRoutes } from './ai.routes'
+import createAiRoutes from './ai.routes'
 import { Router } from 'express'
 
 const router = Router()
