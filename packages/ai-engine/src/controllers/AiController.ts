@@ -1,63 +1,109 @@
 // packages/ai-engine/src/controllers/AiController.ts
-import type { Request, Response } from 'express';
 
-// 模拟一个简单的异步延迟函数
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
-export const handleChatStream = async (req: Request, res: Response) => {
-    console.log('⚙️ handleChatStream called');
-
-    // 设置超时
-    const timeoutId = setTimeout(() => {
-        console.error('❌ Request timeout for /chat/stream');
-        if (!res.headersSent) {
-            res.status(504).json({ error: 'Gateway Timeout' });
-        }
-        res.end();
-    }, 30000);
-
+import { ChatOpenAI } from "@langchain/openai";
+import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
+import { HumanMessage, AIMessage } from "@langchain/core/messages";
+import { Request, Response } from "express";
+import { Readable } from 'stream';
+export interface AiMessage {
+    role: 'user' | 'assistant';
+    content: string;
+}
+export interface AiConfig {
+    provider: 'openai' | 'google';
+    model: string;
+    apiKey: string;
+    baseUrl?: string;
+}
+export interface AiStreamRequest {
+    history: AiMessage[];
+    currentMessage: string;
+    config: AiConfig;
+}
+export interface AiStreamResponse {
+    chunk?: string;
+    event?: 'end';
+}
+export const handleAiStream = async (req: Request, res: Response) => {
     try {
-        const { current_message: userMessage } = req.body;
-        console.log('📝 Received message:', userMessage);
+        const { history, currentMessage, config } = req.body as AiStreamRequest;
 
-        if (!userMessage || typeof userMessage !== 'string') {
-            clearTimeout(timeoutId);
-            return res.status(400).json({ error: 'Missing or invalid "current_message"' });
+        // 1. 构造消息历史
+        const langChainMessages = history.map(msg =>
+            msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
+        );
+        langChainMessages.push(new HumanMessage(currentMessage));
+
+        // 2. 根据 provider 选择 LLM（关键改进！）
+        let llm;
+
+        if (config.provider === 'openai') {
+            // 所有 OpenAI 兼容服务（包括 OpenAI、Groq、TogetherAI、Ollama 等）
+            if (!config.baseUrl) {
+                return res.status(400).json({
+                    error: "baseUrl is required for OpenAI-compatible providers"
+                });
+            }
+
+            llm = new ChatOpenAI({
+                model: config.model,
+                apiKey: config.apiKey,
+                configuration: {
+                    baseURL: config.baseUrl
+                }
+            });
+        }
+        else if (config.provider === 'google') {
+            // Google Gemini
+            llm = new ChatGoogleGenerativeAI({
+                model: config.model,
+                apiKey: config.apiKey,
+            });
+        }
+        else {
+            return res.status(400).json({
+                error: `Unsupported provider: ${config.provider}`
+            });
         }
 
-        const simulatedAiResponse = `Echo: "${userMessage}". This is a simulated streaming response.`;
-        console.log('🤖 Starting to send simulated response...');
+        // 3. 流式处理
+        const stream = await llm.stream(langChainMessages);
 
-        // 【关键修改】直接设置响应头并开始写入
-        res.setHeader('Content-Type', 'application/octet-stream');
+        res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
-        res.flushHeaders(); // 立即发送响应头
 
-        // 【关键修改】逐字写入响应
-        for (const char of simulatedAiResponse) {
-            // 检查客户端是否已断开
-            if (res.destroyed) {
-                console.log('🔌 Client disconnected during streaming');
-                break;
+        for await (const chunk of stream) {
+            if (chunk.content) {
+                // 注意：需要转义 JSON 字符串中的特殊字符
+                const safeContent = JSON.stringify(chunk.content);
+                res.write(`data: {"chunk": ${safeContent}}\n\n`);
             }
-            res.write(char);
-            await sleep(30); // 30ms delay
         }
 
-        console.log('✅ Streaming completed');
-        clearTimeout(timeoutId); // 清除超时
-        res.end(); // 正式结束响应
+        res.write(`data: {"event": "end"}\n\n`);
+        res.end();
 
     } catch (error: any) {
-        clearTimeout(timeoutId);
-        console.error('💥 Unhandled error in handleChatStream:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ error: 'Internal Server Error' });
-        } else if (!res.destroyed) {
-            // 如果已经发送了头，尝试发送一个错误 chunk (但这对于 octet-stream 不标准)
-            // 最好直接结束
-            res.end();
+        console.error('AI Engine Error:', error);
+
+        // 根据错误类型返回不同的响应
+        if (error.status === 401 || error.status === 403) {
+            return res.status(400).json({
+                code: "INVALID_API_KEY",
+                message: "Invalid API key provided"
+            });
         }
+        if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
+            return res.status(504).json({
+                code: "LLM_TIMEOUT",
+                message: "LLM service timeout"
+            });
+        }
+        return res.status(502).json({
+            code: "LLM_SERVICE_ERROR",
+            message: error.message || "LLM service error"
+        });
     }
+
 };

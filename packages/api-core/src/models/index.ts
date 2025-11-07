@@ -18,6 +18,11 @@ const sequelize = dbConfig.use_env_variable
 // 手动初始化模型（TS 中必须显式 import）
 import { initUser } from './User';
 const User = initUser(sequelize);
+import { initConversation } from './Conversation';
+const Conversation = initConversation(sequelize)
+import { initMessage } from './Message';
+const Message = initMessage(sequelize)
+
 
 // 如果有其他模型，继续 import...
 // import { initPost } from './Post';
@@ -27,5 +32,5 @@ const User = initUser(sequelize);
 // User.hasMany(Post);
 
 // 统一导出
-export { User };
-export default { User, sequelize, Sequelize };
+export { User, Conversation, Message, };
+export default { User, Conversation, Message, sequelize, Sequelize };
