@@ -1,9 +1,9 @@
 // src/pages/Register.tsx
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authService } from '../services/authService';
-import type { RegisterRequest } from '../types';
-import { AuthLayout } from '../components/layout/AuthLayout';
+import { authService } from '../../services/authService';
+import type { RegisterRequest } from '../../types';
+import { AuthLayout } from '../../components/layout/AuthLayout';
 
 export const Register = () => {
     const [formData, setFormData] = useState<RegisterRequest>({

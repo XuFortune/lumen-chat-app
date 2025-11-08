@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { authService } from '../services/authService';
-import type { LoginRequest } from '../types';
-import { AuthLayout } from '../components/layout/AuthLayout';
-import { useAuthStore } from '../store/useAuthStore';
+import { authService } from '../../services/authService';
+import type { LoginRequest } from '../../types';
+import { AuthLayout } from '../../components/layout/AuthLayout';
+import { useAuthStore } from '../../store/useAuthStore';
 
 export const Login = () => {
     const [formData, setFormData] = useState<LoginRequest>({
