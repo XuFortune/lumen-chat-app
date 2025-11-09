@@ -47,3 +47,4 @@ const apiClient = async (endpoint: string, options: RequestInit = {}) => {
 
 export const get = (endpoint: string) => apiClient(endpoint, { method: 'GET' },)
 export const post = (endpoint: string, data: any) => apiClient(endpoint, { method: 'POST', body: JSON.stringify(data) })
+export const del = (endpoint: string) => apiClient(endpoint, { method: 'DELETE' },)

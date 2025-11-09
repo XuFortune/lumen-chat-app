@@ -30,7 +30,7 @@ export const Login = () => {
         try {
             const { token, username } = await authService.login(formData);
             useAuthStore.getState().login(token, username)
-            //   navigate('/app'); // 登录成功跳转主界面
+            navigate('/app'); // 登录成功跳转主界面
             console.log('登录成功')
         } catch (err: any) {
             setError(err.message || '登录失败，请检查用户名和密码');

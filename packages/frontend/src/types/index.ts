@@ -36,3 +36,18 @@ export interface LoginResponseData {
 
 // 注册成功的 data 结构（通常为空）
 export type RegisterResponseData = null;
+
+
+// 对话相关
+export interface Conversation {
+    id: string,
+    title: string,
+    updated_at: string
+}
+
+export interface Message {
+    id: string;
+    role: 'user' | 'assistant';
+    content: string;
+    created_at: string;
+}
