@@ -106,6 +106,9 @@ importers:
 
   packages/frontend:
     dependencies:
+      '@microsoft/fetch-event-source':
+        specifier: ^2.0.1
+        version: 2.0.1
       '@radix-ui/react-scroll-area':
         specifier: ^1.2.10
         version: 1.2.10(@types/react-dom@19.2.2(@types/react@19.2.2))(@types/react@19.2.2)(react-dom@19.2.0(react@19.2.0))(react@19.2.0)
@@ -589,6 +592,9 @@ packages:
     engines: {node: '>=20'}
     peerDependencies:
       '@langchain/core': ^1.0.0
+
+  '@microsoft/fetch-event-source@2.0.1':
+    resolution: {integrity: sha512-W6CLUJ2eBMw3Rec70qrsEW0jOm/3twwJv21mrmj2yORiaVmVYGS4sSS5yUwvQc1ZlDLYGPnClVWmUUMagKNsfA==}
 
   '@nodelib/fs.scandir@2.1.5':
     resolution: {integrity: sha512-vq24Bq3ym5HEQm2NKCr3yXDwjc7vTsEThRDnkp2DK9p1uqLR+DHurm/NOTo0KG7HYHU7eppKZj3MyqYuMBf62g==}
@@ -3398,6 +3404,8 @@ snapshots:
       zod: 4.1.12
     transitivePeerDependencies:
       - ws
+
+  '@microsoft/fetch-event-source@2.0.1': {}
 
   '@nodelib/fs.scandir@2.1.5':
     dependencies:

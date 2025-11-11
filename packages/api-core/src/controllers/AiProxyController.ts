@@ -64,6 +64,8 @@ export const handleAiStreamProxy = async (
     }
 
     let dbConversationId: string
+    let userMessageId: string
+    let asMessageId: string
     try {
         if (conversation_id) {
             const existingConv = await Conversation.findOne({
@@ -82,11 +84,12 @@ export const handleAiStreamProxy = async (
             dbConversationId = newConv.id
         }
 
-        await Message.create({
+        const userMessage = await Message.create({
             conversation_id: dbConversationId,
             role: "user",
             content: currentMessage
         })
+        userMessageId = userMessage.id
 
     } catch (dbError) {
         console.error('Database error during setup:', dbError);
@@ -112,6 +115,13 @@ export const handleAiStreamProxy = async (
                 headers: { 'Content-Type': 'application/json' }
             }
         );
+        // 在流式开始前发送
+        res.write(`data: ${JSON.stringify({
+            event: 'start',
+            conversation_id: dbConversationId,
+            user_message_id: userMessageId
+        })}\n\n`);
+
         aiResponse.data.on('data', (chunk: Buffer) => {
             const chunkStr = chunk.toString();
             buffer += chunkStr
@@ -146,7 +156,7 @@ export const handleAiStreamProxy = async (
             console.log('AI 流结束')
             console.log(fullResponse)
             try {
-                await Message.create({
+                const assistantMessage = await Message.create({
                     conversation_id: dbConversationId,
                     role: 'assistant',
                     content: fullResponse
@@ -155,10 +165,11 @@ export const handleAiStreamProxy = async (
                     { updated_at: new Date() },
                     { where: { id: dbConversationId } }
                 )
+                asMessageId = assistantMessage.id
             } catch (saveError) {
                 console.error('Failed to save AI message:', saveError);
             }
-            res.write(`data:${JSON.stringify({ event: 'end', conversation_id: dbConversationId })}\n\n`);
+            res.write(`data: ${JSON.stringify({ event: 'end', conversation_id: dbConversationId, message_id: asMessageId })}\n\n`);
             res.end()
         })
         aiResponse.data.on('error', (err: Error) => {

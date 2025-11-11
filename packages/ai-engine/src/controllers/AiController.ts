@@ -27,7 +27,9 @@ export interface AiStreamResponse {
 export const handleAiStream = async (req: Request, res: Response) => {
     try {
         const { history, currentMessage, config } = req.body as AiStreamRequest;
-
+        console.log('history', history)
+        console.log('currentMessage', currentMessage)
+        console.log('config ', config)
         // 1. 构造消息历史
         const langChainMessages = history.map(msg =>
             msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)

@@ -46,8 +46,10 @@ export interface Conversation {
 }
 
 export interface Message {
+    conversation_id: string | null,
     id: string;
     role: 'user' | 'assistant';
     content: string;
-    created_at: string;
+    created_at?: string;
 }
+

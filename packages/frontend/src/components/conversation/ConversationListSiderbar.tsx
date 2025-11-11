@@ -5,7 +5,7 @@ import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useState, useEffect } from "react";
 import { FaTrash } from 'react-icons/fa';
-import { getConversations, deleteConversation } from "@/services/conversationService";
+import { conversationService } from "@/services/conversationService";
 import type { Conversation } from "@/types";
 
 const ConversationListSidebar = () => {
@@ -25,7 +25,7 @@ const ConversationListSidebar = () => {
             }
             try {
                 setIsLoading(true)
-                const data = await getConversations()
+                const data = await conversationService.getConversations()
                 setConversations(data)
                 setCurrentConversationId(data[0].id)
             } catch (error) {
@@ -39,7 +39,7 @@ const ConversationListSidebar = () => {
 
     const handleDelete = async (conversationId: string) => {
         try {
-            await deleteConversation(conversationId)
+            await conversationService.deleteConversation(conversationId)
             setConversations(conversations.filter(item => item.id !== conversationId))
             if (conversationId === currentConversationId) {
                 setCurrentConversationId(null)

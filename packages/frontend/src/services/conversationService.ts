@@ -1,19 +1,126 @@
-import { del, get } from "./apiClient";
-import type { Conversation, Message } from "@/types";
+import { fetchEventSource } from '@microsoft/fetch-event-source';
+import { get, del, patch } from './apiClient';
+import type { Conversation, Message } from '@/types';
 
-// 获取对话列表
-export const getConversations = async (): Promise<Conversation[]> => {
-    const data = await get('/conversations')
-    return data as Conversation[]
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1'
+
+export interface ChatStreamRequest {
+    conversation_id: string | null
+    history: Message[];
+    currentMessage: string;
+    config: {
+        model: string;
+        apiKey: string;
+        baseUrl?: string;
+    };
 }
 
-// 获取指定对话的所有消息历史
-export const getConversationMessages = async (conversationId: string): Promise<Message[]> => {
-    const data = await get(`/conversations/${conversationId}/messages`)
-    return data as Message[]
+export interface ChatStreamResponse {
+    chunk?: string;
+    event?: 'start' | 'end' | 'error';
+    conversation_id?: string;
+    user_message_id?: string;      // ✅ start 事件返回
+    message_id?: string;     // ✅ end 事件返回（assistant_message_id）
+    message?: string;               // error 事件返回
+}
+// 回调函数类型
+export type OnStartCallback = (data: {
+    conversation_id?: string;
+    user_message_id?: string
+}) => void;
+
+export type OnEndCallback = (data: {
+    conversation_id?: string;
+    message_id?: string | null
+}) => void;
+
+export type OnChunkCallback = (chunk: string) => void;
+
+export type OnErrorCallback = (error: Error) => void;
+
+class FatalError extends Error {
+    statusCode?: number;
+
+    constructor(message: string, statusCode?: number) {
+        super(message);
+        this.name = 'FatalError';
+        this.statusCode = statusCode;
+    }
 }
 
-export const deleteConversation = async (conversationId: string) => {
-    const data = await del(`/conversations/${conversationId}`)
-    return data
-}
+export const conversationService = {
+    // 获取对话列表
+    async getConversations(): Promise<Conversation[]> {
+        return get<Conversation[]>('/conversations');
+    },
+    // 获取对话具体消息
+    async getConversationMessages(conversationId: string): Promise<Message[]> {
+        return get<Message[]>(`/conversations/${conversationId}/messages`);
+    },
+    // 删除对话
+    async deleteConversation(conversationId: string): Promise<void> {
+        return del<void>(`/conversations/${conversationId}`);
+    },
+    // 重命名对话标题
+    async renameConversation(conversationId: string, title: string): Promise<Conversation> {
+        return patch<Conversation>(`/conversations/${conversationId}`, { title });
+    },
+    // 流式
+    async postChatStream(
+        request: ChatStreamRequest,
+        onChunk: OnChunkCallback,
+        onStart: OnStartCallback,
+        onEnd: OnEndCallback,
+        onError: OnErrorCallback,
+        token: string
+    ): Promise<void> {
+        await fetchEventSource(`${API_BASE_URL}/ai/stream`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${token}`
+            },
+            body: JSON.stringify(request),
+
+            onmessage(event) {
+                try {
+                    const data = JSON.parse(event.data) as ChatStreamResponse;
+                    if (data.event === 'start') {
+                        onStart({
+                            conversation_id: data.conversation_id,
+                            user_message_id: data.user_message_id
+                        })
+                    }
+                    else if (data.event === 'end') {
+                        onEnd({
+                            conversation_id: data.conversation_id,
+                            message_id: data.message_id
+                        });
+                    } else if (data.chunk) {
+                        onChunk(data.chunk);
+                    }
+                } catch (error) {
+                    console.error('Failed to parse SSE data:', error);
+                }
+            },
+
+            onerror(error) {
+                if (error instanceof Error) {
+                    if (error.message.includes('401')) {
+                        onError(new FatalError('认证失败，请重新登录', 401));
+                        throw error;
+                    }
+                    if (error.message.includes('403')) {
+                        onError(new FatalError('API Key无效', 403));
+                        throw error;
+                    }
+                }
+                onError(error instanceof Error ? error : new Error('未知错误'));
+            },
+
+            onclose() {
+                // 连接正常关闭
+            }
+        });
+    }
+};
