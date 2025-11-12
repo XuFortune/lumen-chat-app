@@ -3,13 +3,38 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { conversationService } from "@/services/conversationService";
 import type { ChatStreamRequest } from "@/services/conversationService";
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
+import InsightPopup from "./InsightPopup";
+
+// 新增：视觉高亮层组件
+const SelectionHighlight = ({ range }: { range: Range | null }) => {
+    if (!range) return null;
+
+    const rect = range.getBoundingClientRect();
+    const container = range.commonAncestorContainer.parentElement?.closest('[data-chat-container]');
+    if (!container) return null;
+
+    const containerRect = container.getBoundingClientRect();
+
+    return (
+        <div
+            className="absolute bg-blue-500/20 pointer-events-none z-40 rounded-sm"
+            style={{
+                left: `${rect.left - containerRect.left}px`,
+                top: `${rect.top - containerRect.top}px`,
+                width: `${rect.width}px`,
+                height: `${rect.height}px`,
+            }}
+        />
+    );
+};
 
 const ChatContentArea = () => {
     const {
@@ -20,7 +45,7 @@ const ChatContentArea = () => {
         updateStreamingMessage,
         setCurrentConversationId,
         setConversations,
-        updateMessageId
+        updateMessageId,
     } = useConversationStore();
 
     const { token, user } = useAuthStore();
@@ -29,7 +54,15 @@ const ChatContentArea = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // 加载当前会话的消息
+    // ===== 浮窗智解相关状态 =====
+    const [selectedText, setSelectedText] = useState("");
+    const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
+    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+    const [isInsightPopupOpen, setIsInsightPopupOpen] = useState(false);
+    const chatContainerRef = useRef<HTMLDivElement>(null);
+    const savedRangeRef = useRef<Range | null>(null);
+
+    // 加载当前会话的消息 (原有逻辑)
     useEffect(() => {
         const loadMessages = async () => {
             if (!currentConversationId) {
@@ -53,45 +86,79 @@ const ChatContentArea = () => {
         loadMessages();
     }, [currentConversationId]);
 
+    // 划词监听逻辑 - 彻底简化
+    const handleMouseUp = useCallback((e: React.MouseEvent) => {
+        const selection = window.getSelection();
+        if (!selection || !chatContainerRef.current) return;
+
+        const selectedString = selection.toString().trim();
+        if (!selectedString) {
+            // 清理状态
+            savedRangeRef.current = null;
+            setIsPopoverOpen(false);
+            return;
+        }
+
+        const range = selection.getRangeAt(0);
+        const isInsideChat = chatContainerRef.current.contains(range.commonAncestorContainer);
+        if (!isInsideChat) {
+            // 清理状态
+            savedRangeRef.current = null;
+            setIsPopoverOpen(false);
+            return;
+        }
+
+        // 保存选区（用于后续操作和视觉高亮）
+        savedRangeRef.current = range.cloneRange();
+        setSelectedText(selectedString);
+
+        // 计算位置
+        const rect = range.getBoundingClientRect();
+        setPopoverPosition({ left: rect.right, top: rect.bottom });
+
+        // 立即打开 Popover（不等待，不恢复选区）
+        setIsPopoverOpen(true);
+    }, []);
+
+    // 处理“解释”点击
+    const handleExplain = useCallback(() => {
+        setIsPopoverOpen(false);
+        setIsInsightPopupOpen(true);
+    }, []);
+
+    // 发送消息逻辑 (原有逻辑)
     const handleSendMessage = useCallback(async () => {
         const messageContent = input.trim();
         if (!messageContent || isStreaming || !token) return;
 
-        // 清除之前的错误提示
         setError(null);
 
-        // 获取当前会话的消息历史（用于构建 history）
         const currentMessages = currentConversationId
             ? (messages[currentConversationId] || [])
             : [];
 
-        // 获取用户配置的 LLM 模型（假设使用第一个配置）
         const llmConfig = user?.llm_configs?.[0] || {
             provider: "openai",
             model: "qwen-plus",
             apiKey: "sk-bb1d2c338d104e9aaef4c8a9a9a6c592",
             baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
         };
+
         if (!llmConfig) {
             setError("请先在设置中配置 LLM 模型（如 OpenAI 或 Gemini）");
             return;
         }
 
-        // 构造发送给 AI 引擎的请求体
         const requestBody: ChatStreamRequest = {
             conversation_id: currentConversationId,
-            history: currentMessages,
+            history: [],
             currentMessage: messageContent,
-            config: {
-                ...llmConfig
-            },
+            config: { ...llmConfig },
         };
-        console.log('body', JSON.stringify(requestBody))
-        // ✅ 创建临时 ID（前端乐观更新用）
+
         const tempUserMessageId = crypto.randomUUID();
         const tempAssistantMessageId = crypto.randomUUID();
 
-        // ✅ 乐观更新：立即在 UI 中显示用户消息和占位 AI 消息
         addMessage(currentConversationId, {
             id: tempUserMessageId,
             role: "user",
@@ -108,75 +175,54 @@ const ChatContentArea = () => {
             conversation_id: currentConversationId as string
         });
 
-        // ✅ 启动流式状态
         setStreamingMessage(tempAssistantMessageId);
         setInput("");
         setIsStreaming(true);
 
         try {
-            // ✅ 调用封装好的服务层，传入回调函数处理不同事件
             await conversationService.postChatStream(
                 requestBody,
-                // ✅ 2. 收到 'chunk' 事件：逐步追加 AI 回复内容
-                (chunk) => {
-                    updateStreamingMessage(chunk);
-                },
-                // ✅ 1. 收到 'start' 事件：更新 user 消息的真实 ID
+                (chunk) => updateStreamingMessage(chunk),
                 (startData) => {
                     if (startData.user_message_id) {
                         updateMessageId(tempUserMessageId, startData.user_message_id);
                     }
                 },
-                // ✅ 3. 收到 'end' 事件：更新 assistant 消息的真实 ID，并处理新会话
                 (endData) => {
                     if (endData.message_id) {
                         updateMessageId(tempAssistantMessageId, endData.message_id);
                     }
-
                     setStreamingMessage(null);
                     setIsStreaming(false);
-
-                    // ✅ 如果是新建会话（conversation_id 为 null），更新当前会话
                     if (!currentConversationId && endData.conversation_id) {
                         setCurrentConversationId(endData.conversation_id);
                         conversationService.getConversations().then(setConversations);
                     }
                 },
-                // ✅ 4. 收到错误：显示错误，清理状态
                 (error) => {
                     console.error("流式通信错误:", error);
-
                     setStreamingMessage(null);
                     setIsStreaming(false);
-
-                    // 移除未完成的 AI 消息（避免残留空消息）
                     if (currentConversationId) {
                         const updatedMessages = (messages[currentConversationId] || []).filter(
                             (msg) => msg.id !== tempAssistantMessageId
                         );
                         useConversationStore.getState().setMessages(currentConversationId, updatedMessages);
                     }
-
-                    // 显示友好错误（不依赖第三方 toast）
                     setError(error.message || "发送失败，请检查网络或配置");
                 },
-                token // ✅ 从 store 获取认证 token
+                token
             );
         } catch (err) {
-            // ✅ 捕获非流式错误（如网络断开、请求失败）
             console.error("调用 AI 引擎失败:", err);
-
             setStreamingMessage(null);
             setIsStreaming(false);
-
-            // 清理残留的 AI 消息
             if (currentConversationId) {
                 const updatedMessages = (messages[currentConversationId] || []).filter(
                     (msg) => msg.id !== tempAssistantMessageId
                 );
                 useConversationStore.getState().setMessages(currentConversationId, updatedMessages);
             }
-
             setError("连接失败，请检查网络或 AI 服务状态");
         }
     }, [
@@ -195,8 +241,7 @@ const ChatContentArea = () => {
         setError,
     ]);
 
-
-    // 渲染空状态
+    // 渲染函数
     const renderEmptyState = () => (
         <div className="flex h-full flex-col items-center justify-center p-6 text-center">
             <div className="text-4xl mb-4">💬</div>
@@ -207,7 +252,6 @@ const ChatContentArea = () => {
         </div>
     );
 
-    // 渲染错误信息
     const renderError = () => {
         if (!error) return null;
         return (
@@ -217,7 +261,6 @@ const ChatContentArea = () => {
         );
     };
 
-    // 渲染聊天消息
     const renderChatMessages = () => {
         const currentMessages = currentConversationId
             ? (messages[currentConversationId] || [])
@@ -299,7 +342,7 @@ const ChatContentArea = () => {
                                 }
                             }}
                             disabled={isStreaming || isLoading}
-                            placeholder={isStreaming ? "AI正在输入..." : "请输入消息..."}
+                            placeholder="请输入消息..."
                             className="min-h-[60px] resize-none pr-12"
                         />
                         <Button
@@ -321,7 +364,56 @@ const ChatContentArea = () => {
     };
 
     return (
-        <div className="flex h-full flex-col bg-muted/50">
+        <div
+            className="flex h-full flex-col bg-muted/50 relative"
+            ref={chatContainerRef}
+            onMouseUp={handleMouseUp}
+            data-chat-container // 用于高亮层定位
+        >
+            {/* 视觉高亮层 - 关键新增 */}
+            <SelectionHighlight range={savedRangeRef.current} />
+
+            {/* Popover 气泡菜单 - 简化版 */}
+            <Popover
+                open={isPopoverOpen}
+                onOpenChange={setIsPopoverOpen}
+                modal={false} // 禁用模态行为
+            >
+                <PopoverTrigger asChild>
+                    <div style={{ display: 'none' }} />
+                </PopoverTrigger>
+                <PopoverContent
+                    className="w-auto p-2 shadow-lg z-50"
+                    style={{
+                        position: 'absolute',
+                        left: `${popoverPosition.left}px`,
+                        top: `${popoverPosition.top}px`,
+                        transform: 'translateY(5px)',
+                        zIndex: 50,
+                    }}
+                    align="start"
+                    side="bottom"
+                    onOpenAutoFocus={(e) => e.preventDefault()} // 阻止自动聚焦
+                >
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={handleExplain}
+                        className="text-xs"
+                    >
+                        解释
+                    </Button>
+                </PopoverContent>
+            </Popover>
+
+            {/* 浮窗智解面板 */}
+            {isInsightPopupOpen && (
+                <InsightPopup
+                    initialText={selectedText}
+                    onClose={() => setIsInsightPopupOpen(false)}
+                />
+            )}
+
             {currentConversationId === null ? renderEmptyState() : renderChatMessages()}
         </div>
     );
