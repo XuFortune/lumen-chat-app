@@ -1,76 +1,68 @@
+// packages/frontend/src/components/conversation/ConversationListSidebar.tsx
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { FaTrash } from 'react-icons/fa';
-import { conversationService } from "@/services/conversationService";
-import type { Conversation } from "@/types";
+import { Skeleton } from "@/components/ui/skeleton";
 
 const ConversationListSidebar = () => {
-    // 1. 从 Store 中获取当前会话 ID 和设置函数
-    const { currentConversationId, setCurrentConversationId } = useConversationStore();
-    const { token } = useAuthStore()
+    // 只订阅 store，不再维护本地 state
+    const {
+        conversations,
+        currentConversationId,
+        setCurrentConversationId,
+        isLoadingConversations,
+        loadConversations,
+        removeConversation
+    } = useConversationStore();
 
-    const [conversations, setConversations] = useState<Conversation[]>([])
-    const [isLoading, setIsLoading] = useState(true)
+    const { token } = useAuthStore();
 
+    // 触发数据加载
     useEffect(() => {
-        const loadConversation = async () => {
-            console.log('qq')
-            if (!token) {
-                setIsLoading(false)
-                return
-            }
-            try {
-                setIsLoading(true)
-                const data = await conversationService.getConversations()
-                setConversations(data)
-                setCurrentConversationId(data[0].id)
-            } catch (error) {
-                console.error("Failed to load conversations:", error);
-            } finally {
-                setIsLoading(false)
-            }
+        if (token) {
+            loadConversations();
         }
-        loadConversation()
-    }, [token])
+    }, [token, loadConversations]);
 
     const handleDelete = async (conversationId: string) => {
         try {
-            await conversationService.deleteConversation(conversationId)
-            setConversations(conversations.filter(item => item.id !== conversationId))
-            if (conversationId === currentConversationId) {
-                setCurrentConversationId(null)
-            }
+            await removeConversation(conversationId);
         } catch (error) {
+            // 错误已在 store 中处理，这里可以添加额外的 UI 反馈（如 toast）
             console.error('删除失败:', error);
         }
+    };
 
+    const handleNewChat = () => {
+        setCurrentConversationId('temp');
+    };
 
-    }
-
-    // 3. 为每个会话项管理悬停状态
+    // 悬停状态管理（UI 交互，与数据无关）
     const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-    if (isLoading) {
+    // 加载态
+    if (isLoadingConversations) {
         return (
             <div className="flex h-full w-64 flex-col bg-background p-4">
                 <div className="space-y-2">
                     {[...Array(5)].map((_, i) => (
-                        <div key={i} className="h-4 bg-muted rounded animate-pulse"></div>
+                        <Skeleton key={i} className="h-4 w-full rounded" />
                     ))}
                 </div>
             </div>
         );
     }
+
     return (
         <div className="flex h-full w-64 flex-col bg-background">
             <div className="p-4">
                 <Button
-                    className="w-full justify-start"
-                    onClick={() => setCurrentConversationId(null)}
+                    className="w-full justify-center bg-blue-900"
+                    onClick={handleNewChat}
                 >
                     + 新聊天
                 </Button>
@@ -85,12 +77,12 @@ const ConversationListSidebar = () => {
                             onMouseLeave={() => setHoveredId(null)}
                             onClick={() => setCurrentConversationId(conv.id)}
                             className={`
-                    group flex w-full items-center justify-between rounded-md p-2  transition-colors cursor-pointer
-                    ${currentConversationId === conv.id
+                group flex w-58 items-center justify-between rounded-md p-2 transition-colors cursor-pointer
+                ${currentConversationId === conv.id
                                     ? 'bg-gray-100'
                                     : 'hover:bg-accent'
                                 }
-                  `}
+              `}
                         >
                             <span className="truncate">{conv.title}</span>
                             {hoveredId === conv.id && (
@@ -100,10 +92,10 @@ const ConversationListSidebar = () => {
                                     className="h-4 w-6 p-0 text-muted-foreground hover:text-red-500 bg-transparent"
                                     onClick={(e) => {
                                         e.stopPropagation();
-                                        handleDelete(conv.id)
+                                        handleDelete(conv.id);
                                     }}
                                 >
-                                    <FaTrash size={14}></FaTrash>
+                                    <FaTrash size={14} />
                                 </Button>
                             )}
                         </div>
@@ -113,4 +105,5 @@ const ConversationListSidebar = () => {
         </div>
     );
 };
+
 export default ConversationListSidebar;

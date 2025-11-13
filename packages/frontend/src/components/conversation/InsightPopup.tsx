@@ -19,7 +19,7 @@ interface InsightPopupProps {
 
 const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
     const { token, user } = useAuthStore();
-    const { setCurrentConversationId, setConversations } = useConversationStore();
+    const { setCurrentConversationId, loadConversations } = useConversationStore();
 
     const [position, setPosition] = useState({ x: 300, y: 200 }); // 默认位置
     const [isDragging, setIsDragging] = useState(false);
@@ -160,7 +160,7 @@ const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
                     if (endData.conversation_id) {
                         // 更新 Store，切换到新会话
                         setCurrentConversationId(endData.conversation_id);
-                        conversationService.getConversations().then(setConversations);
+                        loadConversations();
                         // 关闭浮窗
                         onClose();
                     }

@@ -12,8 +12,8 @@ import type { ChatStreamRequest } from "@/services/conversationService";
 import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import InsightPopup from "./InsightPopup";
-
-// 新增：视觉高亮层组件
+import ChatInputArea from "./ChatInputArea";
+// 视觉高亮层组件
 const SelectionHighlight = ({ range }: { range: Range | null }) => {
     if (!range) return null;
 
@@ -37,15 +37,17 @@ const SelectionHighlight = ({ range }: { range: Range | null }) => {
 };
 
 const ChatContentArea = () => {
+    // 只订阅必要的 store 方法
     const {
         currentConversationId,
+        conversations,
         messages,
         addMessage,
         setStreamingMessage,
         updateStreamingMessage,
         setCurrentConversationId,
-        setConversations,
         updateMessageId,
+        loadConversations // 新增：用于刷新会话列表
     } = useConversationStore();
 
     const { token, user } = useAuthStore();
@@ -54,7 +56,7 @@ const ChatContentArea = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // ===== 浮窗智解相关状态 =====
+    // 浮窗智解相关状态
     const [selectedText, setSelectedText] = useState("");
     const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
     const [isPopoverOpen, setIsPopoverOpen] = useState(false);
@@ -62,7 +64,7 @@ const ChatContentArea = () => {
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const savedRangeRef = useRef<Range | null>(null);
 
-    // 加载当前会话的消息 (原有逻辑)
+    // 加载当前会话的消息
     useEffect(() => {
         const loadMessages = async () => {
             if (!currentConversationId) {
@@ -86,14 +88,13 @@ const ChatContentArea = () => {
         loadMessages();
     }, [currentConversationId]);
 
-    // 划词监听逻辑 - 彻底简化
+    // 划词监听逻辑
     const handleMouseUp = useCallback((e: React.MouseEvent) => {
         const selection = window.getSelection();
         if (!selection || !chatContainerRef.current) return;
 
         const selectedString = selection.toString().trim();
         if (!selectedString) {
-            // 清理状态
             savedRangeRef.current = null;
             setIsPopoverOpen(false);
             return;
@@ -102,21 +103,17 @@ const ChatContentArea = () => {
         const range = selection.getRangeAt(0);
         const isInsideChat = chatContainerRef.current.contains(range.commonAncestorContainer);
         if (!isInsideChat) {
-            // 清理状态
             savedRangeRef.current = null;
             setIsPopoverOpen(false);
             return;
         }
 
-        // 保存选区（用于后续操作和视觉高亮）
         savedRangeRef.current = range.cloneRange();
         setSelectedText(selectedString);
 
-        // 计算位置
         const rect = range.getBoundingClientRect();
         setPopoverPosition({ left: rect.right, top: rect.bottom });
 
-        // 立即打开 Popover（不等待，不恢复选区）
         setIsPopoverOpen(true);
     }, []);
 
@@ -126,7 +123,7 @@ const ChatContentArea = () => {
         setIsInsightPopupOpen(true);
     }, []);
 
-    // 发送消息逻辑 (原有逻辑)
+    // 发送消息
     const handleSendMessage = useCallback(async () => {
         const messageContent = input.trim();
         if (!messageContent || isStreaming || !token) return;
@@ -139,9 +136,9 @@ const ChatContentArea = () => {
 
         const llmConfig = user?.llm_configs?.[0] || {
             provider: "openai",
-            model: "qwen-plus",
-            apiKey: "sk-bb1d2c338d104e9aaef4c8a9a9a6c592",
-            baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            model: "deepseek-chat",
+            apiKey: "sk-c2ec976a434c469d9949b3889e26f790",
+            baseUrl: "https://api.deepseek.com/v1"
         };
 
         if (!llmConfig) {
@@ -151,7 +148,7 @@ const ChatContentArea = () => {
 
         const requestBody: ChatStreamRequest = {
             conversation_id: currentConversationId,
-            history: [],
+            history: currentMessages,
             currentMessage: messageContent,
             config: { ...llmConfig },
         };
@@ -188,15 +185,18 @@ const ChatContentArea = () => {
                         updateMessageId(tempUserMessageId, startData.user_message_id);
                     }
                 },
-                (endData) => {
+                async (endData) => {
                     if (endData.message_id) {
                         updateMessageId(tempAssistantMessageId, endData.message_id);
                     }
                     setStreamingMessage(null);
                     setIsStreaming(false);
+
+                    // 新会话创建成功后，刷新会话列表
                     if (!currentConversationId && endData.conversation_id) {
                         setCurrentConversationId(endData.conversation_id);
-                        conversationService.getConversations().then(setConversations);
+                        // 使用 store 的 loadConversations 而不是手动调用 service
+                        await loadConversations();
                     }
                 },
                 (error) => {
@@ -236,9 +236,8 @@ const ChatContentArea = () => {
         setStreamingMessage,
         updateStreamingMessage,
         setCurrentConversationId,
-        setConversations,
+        loadConversations, // 替换了 setConversations
         updateMessageId,
-        setError,
     ]);
 
     // 渲染函数
@@ -330,7 +329,20 @@ const ChatContentArea = () => {
                         </div>
                     )}
                 </ScrollArea>
-                <div className="shrink-0 p-4 border-t">
+                {/* 输入区域 - 限制最大高度为父容器的 50% */}
+                <div className="shrink-0 max-h-[50%]">
+                    <ChatInputArea
+                        value={input}
+                        onChange={setInput}
+                        onSend={handleSendMessage}
+                        isStreaming={isStreaming}
+                        isDisabled={isLoading}
+                        //   isCreatingNewConversation={isCreatingNewConversation}
+                        //   currentModel={currentModel}
+                        onModelSelect={() => {/* 打开模型选择器 */ }}
+                    />
+                </div>
+                {/* <div className="shrink-0 p-4 border-t">
                     <div className="relative">
                         <Textarea
                             value={input}
@@ -358,7 +370,7 @@ const ChatContentArea = () => {
                             )}
                         </Button>
                     </div>
-                </div>
+                </div> */}
             </>
         );
     };
@@ -368,16 +380,14 @@ const ChatContentArea = () => {
             className="flex h-full flex-col bg-muted/50 relative"
             ref={chatContainerRef}
             onMouseUp={handleMouseUp}
-            data-chat-container // 用于高亮层定位
+            data-chat-container
         >
-            {/* 视觉高亮层 - 关键新增 */}
             <SelectionHighlight range={savedRangeRef.current} />
 
-            {/* Popover 气泡菜单 - 简化版 */}
             <Popover
                 open={isPopoverOpen}
                 onOpenChange={setIsPopoverOpen}
-                modal={false} // 禁用模态行为
+                modal={false}
             >
                 <PopoverTrigger asChild>
                     <div style={{ display: 'none' }} />
@@ -393,7 +403,7 @@ const ChatContentArea = () => {
                     }}
                     align="start"
                     side="bottom"
-                    onOpenAutoFocus={(e) => e.preventDefault()} // 阻止自动聚焦
+                    onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <Button
                         variant="ghost"
@@ -406,7 +416,6 @@ const ChatContentArea = () => {
                 </PopoverContent>
             </Popover>
 
-            {/* 浮窗智解面板 */}
             {isInsightPopupOpen && (
                 <InsightPopup
                     initialText={selectedText}
@@ -414,7 +423,9 @@ const ChatContentArea = () => {
                 />
             )}
 
-            {currentConversationId === null ? renderEmptyState() : renderChatMessages()}
+            {conversations.length === 0 && currentConversationId === null
+                ? renderEmptyState()
+                : renderChatMessages()}
         </div>
     );
 };
