@@ -27,7 +27,7 @@ export const GlobalSiderbar = () => {
                 <DropdownMenuTrigger>
                     <Avatar>
                         <AvatarImage src="https://github.com/shadcn.png" />
-                        {/* <AvatarFallback>用户</AvatarFallback> */}
+                        <AvatarFallback>用户</AvatarFallback>
                     </Avatar>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent>

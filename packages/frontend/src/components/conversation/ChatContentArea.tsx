@@ -1,6 +1,5 @@
 // packages/frontend/src/components/conversation/ChatContentArea.tsx
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -13,6 +12,7 @@ import ReactMarkdown from 'react-markdown';
 import rehypeSanitize from 'rehype-sanitize';
 import InsightPopup from "./InsightPopup";
 import ChatInputArea from "./ChatInputArea";
+
 // 视觉高亮层组件
 const SelectionHighlight = ({ range }: { range: Range | null }) => {
     if (!range) return null;
@@ -67,7 +67,7 @@ const ChatContentArea = () => {
     // 加载当前会话的消息
     useEffect(() => {
         const loadMessages = async () => {
-            if (!currentConversationId) {
+            if (!currentConversationId || currentConversationId === 'temp') {
                 setError(null);
                 return;
             }
@@ -146,8 +146,9 @@ const ChatContentArea = () => {
             return;
         }
 
+        const isTemp = currentConversationId === 'temp';
         const requestBody: ChatStreamRequest = {
-            conversation_id: currentConversationId,
+            conversation_id: isTemp ? null : currentConversationId,
             history: currentMessages,
             currentMessage: messageContent,
             config: { ...llmConfig },
@@ -192,10 +193,8 @@ const ChatContentArea = () => {
                     setStreamingMessage(null);
                     setIsStreaming(false);
 
-                    // 新会话创建成功后，刷新会话列表
-                    if (!currentConversationId && endData.conversation_id) {
+                    if ((currentConversationId === null || currentConversationId === 'temp') && endData.conversation_id) {
                         setCurrentConversationId(endData.conversation_id);
-                        // 使用 store 的 loadConversations 而不是手动调用 service
                         await loadConversations();
                     }
                 },

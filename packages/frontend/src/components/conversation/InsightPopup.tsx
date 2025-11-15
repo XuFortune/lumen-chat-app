@@ -19,7 +19,7 @@ interface InsightPopupProps {
 
 const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
     const { token, user } = useAuthStore();
-    const { setCurrentConversationId, loadConversations } = useConversationStore();
+    const { setCurrentConversationId, loadConversations, addMessage } = useConversationStore();
 
     const [position, setPosition] = useState({ x: 300, y: 200 }); // 默认位置
     const [isDragging, setIsDragging] = useState(false);
@@ -39,9 +39,9 @@ const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
 
             const llmConfig = user?.llm_configs?.[0] || {
                 provider: "openai",
-                model: "qwen-plus",
-                apiKey: "sk-bb1d2c338d104e9aaef4c8a9a9a6c592",
-                baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                model: "deepseek-chat",
+                apiKey: "sk-c2ec976a434c469d9949b3889e26f790",
+                baseUrl: "https://api.deepseek.com/v1"
             };
             if (!llmConfig) {
                 setError("请先在设置中配置 LLM 模型");
@@ -50,10 +50,11 @@ const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
 
             const prompt = `请用不超过80字，向初学者解释以下概念：'${initialText}'`;
             const requestBody: ChatStreamRequest = {
-                conversation_id: null, // 浮窗智解不关联任何会话
+                conversation_id: null,
                 history: [],
                 currentMessage: prompt,
                 config: { ...llmConfig },
+                ephemeral: true,
             };
 
             const tempAssistantMessageId = crypto.randomUUID();
@@ -71,10 +72,10 @@ const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
                                 : msg
                         ));
                     },
-                    () => { }, // 不需要 start 回调
+                    () => { },
                     (endData) => {
                         setIsStreaming(false);
-                        // 这里不需要更新 ID，因为浮窗内容是临时的
+
                     },
                     (streamError) => {
                         console.error("浮窗智解流式错误:", streamError);
@@ -129,52 +130,17 @@ const InsightPopup = ({ initialText, onClose }: InsightPopupProps) => {
 
     // “继续提问”逻辑
     const handleContinueAsking = async () => {
-        if (!token) return;
-
-        const llmConfig = user?.llm_configs?.[0] || {
-            provider: "openai",
-            model: "qwen-plus",
-            apiKey: "sk-bb1d2c338d104e9aaef4c8a9a9a6c592",
-            baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1"
-        };
-        if (!llmConfig) {
-            setError("请先在设置中配置 LLM 模型");
-            return;
-        }
-
-        // 创建新会话
-        const requestBody: ChatStreamRequest = {
-            conversation_id: null,
-            history: [],
-            currentMessage: initialText,
-            config: { ...llmConfig },
-        };
-
-        try {
-            // 调用流式接口，后端会创建新会话
-            await conversationService.postChatStream(
-                requestBody,
-                () => { }, // 我们只关心 end 事件
-                () => { },
-                (endData) => {
-                    if (endData.conversation_id) {
-                        // 更新 Store，切换到新会话
-                        setCurrentConversationId(endData.conversation_id);
-                        loadConversations();
-                        // 关闭浮窗
-                        onClose();
-                    }
-                },
-                (err) => {
-                    console.error("创建新会话失败:", err);
-                    setError("创建新会话失败");
-                },
-                token
-            );
-        } catch (err) {
-            console.error("创建新会话请求失败:", err);
-            setError("网络错误");
-        }
+        setCurrentConversationId('temp');
+        const content = messages[0]?.content || '';
+        const tempAssistantMessageId = crypto.randomUUID();
+        addMessage('temp', {
+            id: tempAssistantMessageId,
+            role: "assistant",
+            content,
+            created_at: new Date().toISOString(),
+            conversation_id: 'temp'
+        } as any);
+        onClose();
     };
 
     return (

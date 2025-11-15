@@ -13,6 +13,7 @@ export interface ChatStreamRequest {
         apiKey: string;
         baseUrl?: string;
     };
+    ephemeral?: boolean;
 }
 
 export interface ChatStreamResponse {

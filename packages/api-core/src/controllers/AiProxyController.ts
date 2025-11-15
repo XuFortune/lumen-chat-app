@@ -17,6 +17,7 @@ interface AiStreamRequest {
     history: Message[];
     currentMessage: string;
     config: Record<string, any>
+    ephemeral?: boolean
 }
 const allowedRoles = ['user', 'assistant', 'system', 'tool', 'function'];
 function parseSseChunk(chunkStr: string): any {
@@ -41,7 +42,7 @@ export const handleAiStreamProxy = async (
     req: Request<{}, {}, AiStreamRequest>,
     res: Response
 ): Promise<void> => {
-    const { conversation_id, history, currentMessage, config } = req.body
+    const { conversation_id, history, currentMessage, config, ephemeral } = req.body
     if (!currentMessage || typeof currentMessage !== 'string') {
         res.status(400).json(failure('currentMessage is required and must be a string', 'INVALID_REQUEST'))
         return
@@ -60,6 +61,68 @@ export const handleAiStreamProxy = async (
     const userId = (req as any).user?.id
     if (!userId) {
         res.status(401).json(failure('Unauthorized', 'AUTH_REQUIRED'))
+        return
+    }
+
+    if (ephemeral === true) {
+        res.setHeader('Content-Type', 'text/event-stream')
+        res.setHeader('Cache-Control', 'no-cache')
+        res.setHeader('Connection', 'keep-alive')
+        res.setHeader('Access-Control-Allow-Origin', '*')
+
+        let fullResponse = ''
+        let buffer = ''
+        try {
+            const aiResponse = await axios.post(
+                'http://localhost:4001/v1/ai/stream',
+                { history, currentMessage, config },
+                {
+                    responseType: 'stream',
+                    timeout: 30000,
+                    headers: { 'Content-Type': 'application/json' }
+                }
+            );
+            res.write(`data: ${JSON.stringify({ event: 'start' })}\n\n`);
+            aiResponse.data.on('data', (chunk: Buffer) => {
+                const chunkStr = chunk.toString();
+                buffer += chunkStr
+                let boundaryIndex;
+                while ((boundaryIndex = buffer.indexOf('\n\n')) !== -1) {
+                    const sseEvent = buffer.substring(0, boundaryIndex + 2)
+                    buffer = buffer.substring(boundaryIndex + 2)
+                    const parsedData = parseSseChunk(sseEvent)
+                    if (parsedData) {
+                        if (parsedData.chunk !== undefined) {
+                            fullResponse += parsedData.chunk
+                            res.write(sseEvent)
+                        } else if (parsedData.event === 'end') {
+                        } else {
+                            res.write(sseEvent)
+                        }
+                    } else {
+                        res.write(sseEvent)
+                    }
+                }
+            })
+            aiResponse.data.on('end', async () => {
+                if (buffer.trim()) {
+                    const parsedData = parseSseChunk(buffer);
+                    if (parsedData && parsedData.chunk !== undefined) {
+                        fullResponse += parsedData.chunk;
+                    }
+                    res.write(buffer);
+                }
+                res.write(`data: ${JSON.stringify({ event: 'end' })}\n\n`);
+                res.end()
+            })
+            aiResponse.data.on('error', (err: Error) => {
+                res.write(`data: ${JSON.stringify({ event: 'error', message: 'AI processing error' })}\n\n`);
+                res.end();
+            });
+        } catch (error) {
+            res.write(`data: ${JSON.stringify({ event: 'error', message: 'AI service unavailable' })}\n\n`);
+            res.end();
+        }
         return
     }
 
