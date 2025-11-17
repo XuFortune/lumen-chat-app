@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import './App.css'
+import { useEffect, useState } from "react";
+import "./App.css";
 
 function App() {
   return (
@@ -8,7 +8,7 @@ function App() {
         Tailwind CSS 已生效！✨
       </div>
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

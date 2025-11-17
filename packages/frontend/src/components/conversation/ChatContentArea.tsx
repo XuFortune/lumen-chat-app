@@ -2,14 +2,18 @@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import {
+    Popover,
+    PopoverContent,
+    PopoverTrigger,
+} from "@/components/ui/popover";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { conversationService } from "@/services/conversationService";
 import type { ChatStreamRequest } from "@/services/conversationService";
-import ReactMarkdown from 'react-markdown';
-import rehypeSanitize from 'rehype-sanitize';
+import ReactMarkdown from "react-markdown";
+import rehypeSanitize from "rehype-sanitize";
 import InsightPopup from "./InsightPopup";
 import ChatInputArea from "./ChatInputArea";
 
@@ -18,7 +22,9 @@ const SelectionHighlight = ({ range }: { range: Range | null }) => {
     if (!range) return null;
 
     const rect = range.getBoundingClientRect();
-    const container = range.commonAncestorContainer.parentElement?.closest('[data-chat-container]');
+    const container = range.commonAncestorContainer.parentElement?.closest(
+        "[data-chat-container]"
+    );
     if (!container) return null;
 
     const containerRect = container.getBoundingClientRect();
@@ -48,7 +54,7 @@ const ChatContentArea = () => {
         setCurrentConversationId,
         updateMessageId,
         updateMessageConversationId,
-        loadConversations 
+        loadConversations,
     } = useConversationStore();
 
     const { token, user } = useAuthStore();
@@ -68,15 +74,19 @@ const ChatContentArea = () => {
     // 加载当前会话的消息
     useEffect(() => {
         const loadMessages = async () => {
-            if (!currentConversationId || currentConversationId === 'temp') {
+            if (!currentConversationId || currentConversationId === "temp") {
                 setError(null);
                 return;
             }
 
             try {
                 setIsLoading(true);
-                const data = await conversationService.getConversationMessages(currentConversationId);
-                useConversationStore.getState().setMessages(currentConversationId, data);
+                const data = await conversationService.getConversationMessages(
+                    currentConversationId
+                );
+                useConversationStore
+                    .getState()
+                    .setMessages(currentConversationId, data);
                 setError(null);
             } catch (err) {
                 console.error("Failed to load messages:", err);
@@ -102,7 +112,9 @@ const ChatContentArea = () => {
         }
 
         const range = selection.getRangeAt(0);
-        const isInsideChat = chatContainerRef.current.contains(range.commonAncestorContainer);
+        const isInsideChat = chatContainerRef.current.contains(
+            range.commonAncestorContainer
+        );
         if (!isInsideChat) {
             savedRangeRef.current = null;
             setIsPopoverOpen(false);
@@ -132,14 +144,22 @@ const ChatContentArea = () => {
         setError(null);
 
         const currentMessages = currentConversationId
-            ? (messages[currentConversationId] || [])
+            ? messages[currentConversationId] || []
             : [];
-
+        // 目前从env中获取llmconfig
+        const provider = import.meta.env.VITE_LLM_CONFIG_PROVIDER
+        const model = import.meta.env.VITE_LLM_COMFIG_MODEL;
+        const apiKey = import.meta.env.VITE_LLM_CONFIG_API_KEY;
+        const baseUrl = import.meta.env.VITE_LLM_CONFIG_BASE_URL;
+        console.log('provider',provider)
+        console.log('model',model)
+        console.log('apiKey',apiKey)
+        console.log('baseUrl',baseUrl)
         const llmConfig = user?.llm_configs?.[0] || {
-            provider: "openai",
-            model: "deepseek-chat",
-            apiKey: "sk-c2ec976a434c469d9949b3889e26f790",
-            baseUrl: "https://api.deepseek.com/v1"
+            provider,
+            model,
+            apiKey,
+            baseUrl,
         };
 
         if (!llmConfig) {
@@ -147,7 +167,7 @@ const ChatContentArea = () => {
             return;
         }
 
-        const isTemp = currentConversationId === 'temp';
+        const isTemp = currentConversationId === "temp";
         const requestBody: ChatStreamRequest = {
             conversation_id: isTemp ? null : currentConversationId,
             history: currentMessages,
@@ -163,7 +183,7 @@ const ChatContentArea = () => {
             role: "user",
             content: messageContent,
             created_at: new Date().toISOString(),
-            conversation_id: currentConversationId as string
+            conversation_id: currentConversationId as string,
         });
 
         addMessage(currentConversationId, {
@@ -171,7 +191,7 @@ const ChatContentArea = () => {
             role: "assistant",
             content: "",
             created_at: new Date().toISOString(),
-            conversation_id: currentConversationId as string
+            conversation_id: currentConversationId as string,
         });
 
         setStreamingMessage(tempAssistantMessageId);
@@ -194,8 +214,12 @@ const ChatContentArea = () => {
                     setStreamingMessage(null);
                     setIsStreaming(false);
 
-                    if ((currentConversationId === null || currentConversationId === 'temp') && endData.conversation_id) {
-                        updateMessageConversationId('temp', endData.conversation_id);
+                    if (
+                        (currentConversationId === null ||
+                            currentConversationId === "temp") &&
+                        endData.conversation_id
+                    ) {
+                        updateMessageConversationId("temp", endData.conversation_id);
                         await loadConversations();
                     }
                 },
@@ -204,10 +228,12 @@ const ChatContentArea = () => {
                     setStreamingMessage(null);
                     setIsStreaming(false);
                     if (currentConversationId) {
-                        const updatedMessages = (messages[currentConversationId] || []).filter(
-                            (msg) => msg.id !== tempAssistantMessageId
-                        );
-                        useConversationStore.getState().setMessages(currentConversationId, updatedMessages);
+                        const updatedMessages = (
+                            messages[currentConversationId] || []
+                        ).filter((msg) => msg.id !== tempAssistantMessageId);
+                        useConversationStore
+                            .getState()
+                            .setMessages(currentConversationId, updatedMessages);
                     }
                     setError(error.message || "发送失败，请检查网络或配置");
                 },
@@ -221,7 +247,9 @@ const ChatContentArea = () => {
                 const updatedMessages = (messages[currentConversationId] || []).filter(
                     (msg) => msg.id !== tempAssistantMessageId
                 );
-                useConversationStore.getState().setMessages(currentConversationId, updatedMessages);
+                useConversationStore
+                    .getState()
+                    .setMessages(currentConversationId, updatedMessages);
             }
             setError("连接失败，请检查网络或 AI 服务状态");
         }
@@ -263,7 +291,7 @@ const ChatContentArea = () => {
 
     const renderChatMessages = () => {
         const currentMessages = currentConversationId
-            ? (messages[currentConversationId] || [])
+            ? messages[currentConversationId] || []
             : [];
 
         return (
@@ -283,12 +311,13 @@ const ChatContentArea = () => {
                             {currentMessages.map((msg) => (
                                 <div
                                     key={msg.id}
-                                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
+                                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
+                                        }`}
                                 >
                                     <div
                                         className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.role === "user"
-                                            ? "bg-primary text-primary-foreground"
-                                            : "bg-background border"
+                                                ? "bg-primary text-primary-foreground"
+                                                : "bg-background border"
                                             }`}
                                     >
                                         <div className="prose prose-sm max-w-none dark:prose-invert">
@@ -296,9 +325,15 @@ const ChatContentArea = () => {
                                                 rehypePlugins={[rehypeSanitize]}
                                                 components={{
                                                     code({ node, className, children, ...props }) {
-                                                        const isInline = !(node?.type === 'element' && node?.tagName === 'pre');
+                                                        const isInline = !(
+                                                            node?.type === "element" &&
+                                                            node?.tagName === "pre"
+                                                        );
                                                         return isInline ? (
-                                                            <code className="bg-muted px-1 rounded" {...props}>
+                                                            <code
+                                                                className="bg-muted px-1 rounded"
+                                                                {...props}
+                                                            >
                                                                 {children}
                                                             </code>
                                                         ) : (
@@ -340,7 +375,9 @@ const ChatContentArea = () => {
                         isDisabled={isLoading}
                         //   isCreatingNewConversation={isCreatingNewConversation}
                         //   currentModel={currentModel}
-                        onModelSelect={() => {/* 打开模型选择器 */ }}
+                        onModelSelect={() => {
+                            /* 打开模型选择器 */
+                        }}
                     />
                 </div>
                 {/* <div className="shrink-0 p-4 border-t">
@@ -383,7 +420,7 @@ const ChatContentArea = () => {
             onMouseUp={handleMouseUp}
             data-chat-container
         >
-            <SelectionHighlight range={savedRangeRef.current} />
+            {/* <SelectionHighlight range={savedRangeRef.current} /> */}
 
             <Popover
                 open={isPopoverOpen}
@@ -391,15 +428,15 @@ const ChatContentArea = () => {
                 modal={false}
             >
                 <PopoverTrigger asChild>
-                    <div style={{ display: 'none' }} />
+                    <div style={{ display: "none" }} />
                 </PopoverTrigger>
                 <PopoverContent
                     className="w-auto p-2 shadow-lg z-50"
                     style={{
-                        position: 'absolute',
+                        position: "absolute",
                         left: `${popoverPosition.left}px`,
                         top: `${popoverPosition.top}px`,
-                        transform: 'translateY(5px)',
+                        transform: "translateY(5px)",
                         zIndex: 50,
                     }}
                     align="start"
@@ -420,6 +457,10 @@ const ChatContentArea = () => {
             {isInsightPopupOpen && (
                 <InsightPopup
                     initialText={selectedText}
+                    initiaPosition={{
+                        x: `${popoverPosition.left}`,
+                        y: `${popoverPosition.top}`,
+                    }}
                     onClose={() => setIsInsightPopupOpen(false)}
                 />
             )}

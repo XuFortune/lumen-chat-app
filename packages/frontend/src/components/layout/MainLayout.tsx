@@ -5,6 +5,7 @@ import { GlobalSiderbar } from './GlobalSiderbar';
  * 包含全局侧边栏和主工作区。
  */
 const MainLayout = () => {
+
     return (
         <div className="flex h-screen bg-gray-50">
             {/* 全局主侧边栏 */}
