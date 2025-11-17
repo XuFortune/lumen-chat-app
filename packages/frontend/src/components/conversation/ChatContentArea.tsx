@@ -47,7 +47,8 @@ const ChatContentArea = () => {
         updateStreamingMessage,
         setCurrentConversationId,
         updateMessageId,
-        loadConversations // 新增：用于刷新会话列表
+        updateMessageConversationId,
+        loadConversations 
     } = useConversationStore();
 
     const { token, user } = useAuthStore();
@@ -194,7 +195,7 @@ const ChatContentArea = () => {
                     setIsStreaming(false);
 
                     if ((currentConversationId === null || currentConversationId === 'temp') && endData.conversation_id) {
-                        setCurrentConversationId(endData.conversation_id);
+                        updateMessageConversationId('temp', endData.conversation_id);
                         await loadConversations();
                     }
                 },
@@ -235,6 +236,7 @@ const ChatContentArea = () => {
         setStreamingMessage,
         updateStreamingMessage,
         setCurrentConversationId,
+        updateMessageConversationId,
         loadConversations, // 替换了 setConversations
         updateMessageId,
     ]);
@@ -318,13 +320,13 @@ const ChatContentArea = () => {
                                     </div>
                                 </div>
                             ))}
-                            {isStreaming && (
+                            {/* {isStreaming && (
                                 <div className="flex justify-start">
                                     <div className="bg-background border rounded-lg px-4 py-2">
                                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
                                     </div>
                                 </div>
-                            )}
+                            )} */}
                         </div>
                     )}
                 </ScrollArea>

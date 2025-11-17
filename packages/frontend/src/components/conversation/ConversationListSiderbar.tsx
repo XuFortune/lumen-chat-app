@@ -7,16 +7,17 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useState } from "react";
 import { FaTrash } from 'react-icons/fa';
 import { Skeleton } from "@/components/ui/skeleton";
+import { conversationService } from "@/services/conversationService";
 
 const ConversationListSidebar = () => {
-    // 只订阅 store，不再维护本地 state
+    
     const {
         conversations,
         currentConversationId,
         setCurrentConversationId,
         isLoadingConversations,
         loadConversations,
-        removeConversation
+        removeConversation,
     } = useConversationStore();
 
     const { token } = useAuthStore();
@@ -37,8 +38,11 @@ const ConversationListSidebar = () => {
         }
     };
 
-    const handleNewChat = () => {
-        setCurrentConversationId('temp');
+    const handleNewChat = async () => {
+        const {conversation_id} = await conversationService.createNewConversation({})
+        console.log('new',conversation_id)
+        setCurrentConversationId(conversation_id)
+        loadConversations()
     };
 
     // 悬停状态管理（UI 交互，与数据无关）

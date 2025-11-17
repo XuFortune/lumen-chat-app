@@ -1,5 +1,5 @@
 import { fetchEventSource } from '@microsoft/fetch-event-source';
-import { get, del, patch } from './apiClient';
+import { get, del, patch, post } from './apiClient';
 import type { Conversation, Message } from '@/types';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3001/api/v1'
@@ -50,6 +50,9 @@ class FatalError extends Error {
 }
 
 export const conversationService = {
+    async createNewConversation(body:any):Promise<any>{
+        return post('/chat/new',body)
+    },
     // 获取对话列表
     async getConversations(): Promise<Conversation[]> {
         return get<Conversation[]>('/conversations');
