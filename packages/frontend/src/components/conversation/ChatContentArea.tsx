@@ -12,38 +12,13 @@ import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { conversationService } from "@/services/conversationService";
 import type { ChatStreamRequest } from "@/services/conversationService";
-import ReactMarkdown from "react-markdown";
-import rehypeSanitize from "rehype-sanitize";
 import InsightPopup from "./InsightPopup";
 import ChatInputArea from "./ChatInputArea";
-
-// 视觉高亮层组件
-const SelectionHighlight = ({ range }: { range: Range | null }) => {
-    if (!range) return null;
-
-    const rect = range.getBoundingClientRect();
-    const container = range.commonAncestorContainer.parentElement?.closest(
-        "[data-chat-container]"
-    );
-    if (!container) return null;
-
-    const containerRect = container.getBoundingClientRect();
-
-    return (
-        <div
-            className="absolute bg-blue-500/20 pointer-events-none z-40 rounded-sm"
-            style={{
-                left: `${rect.left - containerRect.left}px`,
-                top: `${rect.top - containerRect.top}px`,
-                width: `${rect.width}px`,
-                height: `${rect.height}px`,
-            }}
-        />
-    );
-};
+import { MessageBubble } from "./MessageBubble";
+import { Sparkles } from 'lucide-react';
 
 const ChatContentArea = () => {
-    // 只订阅必要的 store 方法
+
     const {
         currentConversationId,
         conversations,
@@ -70,6 +45,7 @@ const ChatContentArea = () => {
     const [isInsightPopupOpen, setIsInsightPopupOpen] = useState(false);
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const savedRangeRef = useRef<Range | null>(null);
+    const scrollAreaRef = useRef<HTMLDivElement>(null);
 
     // 加载当前会话的消息
     useEffect(() => {
@@ -90,7 +66,7 @@ const ChatContentArea = () => {
                 setError(null);
             } catch (err) {
                 console.error("Failed to load messages:", err);
-                setError("加载消息失败，请重试");
+                setError("Failed to load messages");
             } finally {
                 setIsLoading(false);
             }
@@ -100,7 +76,7 @@ const ChatContentArea = () => {
     }, [currentConversationId]);
 
     // 划词监听逻辑
-    const handleMouseUp = useCallback((e: React.MouseEvent) => {
+    const handleMouseUp = useCallback(() => {
         const selection = window.getSelection();
         if (!selection || !chatContainerRef.current) return;
 
@@ -151,10 +127,7 @@ const ChatContentArea = () => {
         const model = import.meta.env.VITE_LLM_COMFIG_MODEL;
         const apiKey = import.meta.env.VITE_LLM_CONFIG_API_KEY;
         const baseUrl = import.meta.env.VITE_LLM_CONFIG_BASE_URL;
-        console.log('provider',provider)
-        console.log('model',model)
-        console.log('apiKey',apiKey)
-        console.log('baseUrl',baseUrl)
+
         const llmConfig = user?.llm_configs?.[0] || {
             provider,
             model,
@@ -163,7 +136,7 @@ const ChatContentArea = () => {
         };
 
         if (!llmConfig) {
-            setError("请先在设置中配置 LLM 模型（如 OpenAI 或 Gemini）");
+            setError("Please configure LLM settings first");
             return;
         }
 
@@ -224,7 +197,7 @@ const ChatContentArea = () => {
                     }
                 },
                 (error) => {
-                    console.error("流式通信错误:", error);
+                    console.error("Stream error:", error);
                     setStreamingMessage(null);
                     setIsStreaming(false);
                     if (currentConversationId) {
@@ -235,12 +208,12 @@ const ChatContentArea = () => {
                             .getState()
                             .setMessages(currentConversationId, updatedMessages);
                     }
-                    setError(error.message || "发送失败，请检查网络或配置");
+                    setError(error.message || "Failed to send message");
                 },
                 token
             );
         } catch (err) {
-            console.error("调用 AI 引擎失败:", err);
+            console.error("AI Engine Error:", err);
             setStreamingMessage(null);
             setIsStreaming(false);
             if (currentConversationId) {
@@ -251,7 +224,7 @@ const ChatContentArea = () => {
                     .getState()
                     .setMessages(currentConversationId, updatedMessages);
             }
-            setError("连接失败，请检查网络或 AI 服务状态");
+            setError("Connection failed");
         }
     }, [
         input,
@@ -265,17 +238,21 @@ const ChatContentArea = () => {
         updateStreamingMessage,
         setCurrentConversationId,
         updateMessageConversationId,
-        loadConversations, // 替换了 setConversations
+        loadConversations,
         updateMessageId,
     ]);
 
     // 渲染函数
     const renderEmptyState = () => (
-        <div className="flex h-full flex-col items-center justify-center p-6 text-center">
-            <div className="text-4xl mb-4">💬</div>
-            <h2 className="text-xl font-semibold mb-2">欢迎使用浮光 (Lumen)</h2>
+        <div className="flex h-full flex-col items-center justify-center p-6 text-center animate-fade-in-up">
+            <div className="h-12 w-12 bg-muted rounded-xl flex items-center justify-center mb-6">
+                <Sparkles className="h-6 w-6 text-foreground/50" />
+            </div>
+            <h2 className="text-2xl font-semibold text-foreground mb-2">
+                Good afternoon, User
+            </h2>
             <p className="text-muted-foreground max-w-md">
-                点击左侧的“新聊天”按钮，或选择一个历史会话开始对话。
+                How can I help you today?
             </p>
         </div>
     );
@@ -283,7 +260,7 @@ const ChatContentArea = () => {
     const renderError = () => {
         if (!error) return null;
         return (
-            <div className="p-4 text-red-500 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+            <div className="p-4 mx-auto max-w-3xl text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20 mb-4">
                 {error}
             </div>
         );
@@ -294,134 +271,53 @@ const ChatContentArea = () => {
             ? messages[currentConversationId] || []
             : [];
 
+        // Check if the last message is from assistant and currently streaming
+        // We can pass a flag to the last message if needed, but the store handles 'isStreaming' state generally
+        // However, we need to know WHICH message is streaming to show the animation.
+        // For simplicity, we assume if isStreaming is true, the last assistant message is the one.
+
         return (
-            <>
-                <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 px-4 py-6" ref={scrollAreaRef}>
+                <div className="mx-auto max-w-5xl space-y-6 pb-4">
                     {isLoading ? (
-                        <div className="space-y-4">
-                            {[...Array(3)].map((_, i) => (
-                                <div key={i} className="flex justify-start">
-                                    <Skeleton className="h-4 w-3/4 rounded" />
+                        <div className="space-y-8 pt-8">
+                            <div className="flex items-start gap-4">
+                                <Skeleton className="h-8 w-8 rounded-full" />
+                                <div className="space-y-2 flex-1">
+                                    <Skeleton className="h-4 w-3/4" />
+                                    <Skeleton className="h-4 w-1/2" />
                                 </div>
-                            ))}
+                            </div>
                         </div>
                     ) : (
-                        <div className="space-y-4">
+                        <>
                             {renderError()}
-                            {currentMessages.map((msg) => (
-                                <div
-                                    key={msg.id}
-                                    className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"
-                                        }`}
-                                >
-                                    <div
-                                        className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.role === "user"
-                                                ? "bg-primary text-primary-foreground"
-                                                : "bg-background border"
-                                            }`}
-                                    >
-                                        <div className="prose prose-sm max-w-none dark:prose-invert">
-                                            <ReactMarkdown
-                                                rehypePlugins={[rehypeSanitize]}
-                                                components={{
-                                                    code({ node, className, children, ...props }) {
-                                                        const isInline = !(
-                                                            node?.type === "element" &&
-                                                            node?.tagName === "pre"
-                                                        );
-                                                        return isInline ? (
-                                                            <code
-                                                                className="bg-muted px-1 rounded"
-                                                                {...props}
-                                                            >
-                                                                {children}
-                                                            </code>
-                                                        ) : (
-                                                            <pre className="bg-muted p-4 rounded my-2 overflow-x-auto">
-                                                                <code className={className} {...props}>
-                                                                    {children}
-                                                                </code>
-                                                            </pre>
-                                                        );
-                                                    },
-                                                    p({ children }) {
-                                                        return <p className="my-2">{children}</p>;
-                                                    },
-                                                }}
-                                            >
-                                                {msg.content}
-                                            </ReactMarkdown>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                            {/* {isStreaming && (
-                                <div className="flex justify-start">
-                                    <div className="bg-background border rounded-lg px-4 py-2">
-                                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                                    </div>
-                                </div>
-                            )} */}
-                        </div>
+                            {currentMessages.map((msg, index) => {
+                                const isLast = index === currentMessages.length - 1;
+                                const isStreamingThis = isStreaming && isLast && msg.role === 'assistant';
+                                return (
+                                    <MessageBubble
+                                        key={msg.id}
+                                        role={msg.role}
+                                        content={msg.content}
+                                        isStreaming={isStreamingThis}
+                                    />
+                                );
+                            })}
+                        </>
                     )}
-                </ScrollArea>
-                {/* 输入区域 - 限制最大高度为父容器的 50% */}
-                <div className="shrink-0 max-h-[50%]">
-                    <ChatInputArea
-                        value={input}
-                        onChange={setInput}
-                        onSend={handleSendMessage}
-                        isStreaming={isStreaming}
-                        isDisabled={isLoading}
-                        //   isCreatingNewConversation={isCreatingNewConversation}
-                        //   currentModel={currentModel}
-                        onModelSelect={() => {
-                            /* 打开模型选择器 */
-                        }}
-                    />
                 </div>
-                {/* <div className="shrink-0 p-4 border-t">
-                    <div className="relative">
-                        <Textarea
-                            value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            onKeyDown={(e) => {
-                                if (e.key === 'Enter' && !e.shiftKey) {
-                                    e.preventDefault();
-                                    handleSendMessage();
-                                }
-                            }}
-                            disabled={isStreaming || isLoading}
-                            placeholder="请输入消息..."
-                            className="min-h-[60px] resize-none pr-12"
-                        />
-                        <Button
-                            size="sm"
-                            onClick={handleSendMessage}
-                            disabled={isStreaming || isLoading || !input.trim()}
-                            className="absolute right-2 bottom-2 h-8 w-8 p-0"
-                        >
-                            {isStreaming ? (
-                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-primary border-t-transparent"></div>
-                            ) : (
-                                "↵"
-                            )}
-                        </Button>
-                    </div>
-                </div> */}
-            </>
+            </ScrollArea>
         );
     };
 
     return (
         <div
-            className="flex h-full flex-col bg-muted/50 relative"
+            className="flex h-full flex-col relative bg-transparent"
             ref={chatContainerRef}
             onMouseUp={handleMouseUp}
             data-chat-container
         >
-            {/* <SelectionHighlight range={savedRangeRef.current} /> */}
-
             <Popover
                 open={isPopoverOpen}
                 onOpenChange={setIsPopoverOpen}
@@ -431,25 +327,24 @@ const ChatContentArea = () => {
                     <div style={{ display: "none" }} />
                 </PopoverTrigger>
                 <PopoverContent
-                    className="w-auto p-2 shadow-lg z-50"
+                    className="w-auto p-1 shadow-2xl z-50 rounded-lg"
                     style={{
                         position: "absolute",
                         left: `${popoverPosition.left}px`,
                         top: `${popoverPosition.top}px`,
-                        transform: "translateY(5px)",
-                        zIndex: 50,
                     }}
                     align="start"
-                    side="bottom"
+                    side="top"
                     onOpenAutoFocus={(e) => e.preventDefault()}
                 >
                     <Button
                         variant="ghost"
                         size="sm"
                         onClick={handleExplain}
-                        className="text-xs"
+                        className="text-xs h-7"
                     >
-                        解释
+                        <Sparkles className="mr-1 h-3 w-3 text-primary" />
+                        Explain
                     </Button>
                 </PopoverContent>
             </Popover>
@@ -468,6 +363,23 @@ const ChatContentArea = () => {
             {conversations.length === 0 && currentConversationId === null
                 ? renderEmptyState()
                 : renderChatMessages()}
+
+            {/* Floating Input Area */}
+            <div className="shrink-0 p-4 relative z-10 w-full max-w-5xl mx-auto">
+                <ChatInputArea
+                    value={input}
+                    onChange={setInput}
+                    onSend={handleSendMessage}
+                    isStreaming={isStreaming}
+                    isDisabled={isLoading}
+                    onModelSelect={() => { }}
+                />
+                <div className="text-center mt-2">
+                    <span className="text-[10px] text-muted-foreground/50">
+                        Lumen AI can make mistakes. Please check important information.
+                    </span>
+                </div>
+            </div>
         </div>
     );
 };

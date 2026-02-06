@@ -4,6 +4,8 @@ import { authService } from '../../services/authService';
 import type { LoginRequest } from '../../types';
 import { AuthLayout } from '../../components/layout/AuthLayout';
 import { useAuthStore } from '../../store/useAuthStore';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export const Login = () => {
     const [formData, setFormData] = useState<LoginRequest>({
@@ -40,54 +42,63 @@ export const Login = () => {
     };
 
     return (
-        <AuthLayout title="登录" subtitle="开启智能对话之旅">
+        <AuthLayout title="Welcome back" subtitle="Enter your credentials to access your account">
             {error && (
-                <div className="mb-4 p-3 text-sm text-red-600 bg-red-50 rounded-lg border border-red-200">
+                <div className="mb-4 p-3 text-sm text-destructive bg-destructive/10 rounded-lg border border-destructive/20">
                     {error}
                 </div>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
-                        用户名
+                <div className="space-y-2">
+                    <label htmlFor="username" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Username
                     </label>
-                    <input
+                    <Input
                         id="username"
                         name="username"
                         type="text"
+                        placeholder="name@example.com"
                         value={formData.username}
                         onChange={handleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
+                        className="h-11"
                     />
                 </div>
-                <div>
-                    <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
-                        密码
-                    </label>
-                    <input
+                <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                        <label htmlFor="password" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                            Password
+                        </label>
+                        <Link
+                            to="/forgot-password"
+                            className="text-sm font-medium text-primary hover:text-primary/80"
+                        >
+                            Forgot password?
+                        </Link>
+                    </div>
+                    <Input
                         id="password"
                         name="password"
                         type="password"
                         value={formData.password}
                         onChange={handleChange}
-                        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         required
+                        className="h-11"
                     />
                 </div>
-                <button
+                <Button
                     type="submit"
                     disabled={loading}
-                    className="w-full py-2 px-4 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50"
+                    className="w-full h-11"
                 >
-                    {loading ? '登录中...' : '登录'}
-                </button>
+                    {loading ? 'Signing in...' : 'Sign in'}
+                </Button>
             </form>
             <div className="mt-6 text-center">
-                <p className="text-sm text-gray-600">
-                    还没有账号？{' '}
-                    <Link to="/register" className="font-medium text-blue-600 hover:text-blue-500">
-                        立即注册
+                <p className="text-sm text-muted-foreground">
+                    Don't have an account?{' '}
+                    <Link to="/register" className="font-medium text-primary hover:text-primary/80 underline-offset-4 hover:underline">
+                        Sign up
                     </Link>
                 </p>
             </div>

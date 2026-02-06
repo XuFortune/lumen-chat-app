@@ -1,10 +1,10 @@
 import ChatContentArea from "@/components/conversation/ChatContentArea";
-import ConversationListSiderbar from "@/components/conversation/ConversationListSiderbar";
+import ConversationListSidebar from "@/components/conversation/ConversationListSidebar";
 
 const ChatWorkspace = () => {
     return (
         <div className="flex h-full">
-            <ConversationListSiderbar />
+            <ConversationListSidebar />
             <div className="flex-1">
                 <ChatContentArea />
             </div>

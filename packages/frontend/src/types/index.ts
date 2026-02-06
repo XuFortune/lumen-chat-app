@@ -42,7 +42,8 @@ export type RegisterResponseData = null;
 export interface Conversation {
     id: string,
     title: string,
-    updated_at: string
+    updated_at: string,
+    created_at?: string
 }
 
 export interface Message {
