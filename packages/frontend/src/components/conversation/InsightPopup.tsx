@@ -9,14 +9,13 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { X } from "lucide-react";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useConversationStore } from "@/store/useConversationStore";
 import { conversationService } from "@/services/conversationService";
 import type { ChatStreamRequest } from "@/services/conversationService";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import type { Message } from "@/types";
 
 interface InsightPopupProps {
     initialText: string;
@@ -46,6 +45,15 @@ const InsightPopup = ({
     const [error, setError] = useState<string | null>(null);
     const popupRef = useRef<HTMLDivElement>(null);
 
+    // 获取默认 LLM 配置
+    const getDefaultLLMConfig = useCallback(() => {
+        if (!user?.llm_configs || user.llm_configs.length === 0) {
+            return null;
+        }
+        const defaultConfig = user.llm_configs.find(config => config.isDefault);
+        return defaultConfig || user.llm_configs[0];
+    }, [user?.llm_configs]);
+
     // 初始化请求
     useEffect(() => {
         const fetchInsight = async () => {
@@ -54,17 +62,7 @@ const InsightPopup = ({
                 return;
             }
 
-            // 目前从env中获取llmconfig
-            const provider = import.meta.env.VITE_LLM_CONFIG_PROVIDER;
-            const model = import.meta.env.VITE_LLM_COMFIG_MODEL;
-            const apiKey = import.meta.env.VITE_LLM_CONFIG_API_KEY;
-            const baseUrl = import.meta.env.VITE_LLM_CONFIG_BASE_URL;
-            const llmConfig = user?.llm_configs?.[0] || {
-                provider,
-                model,
-                apiKey,
-                baseUrl,
-            };
+            const llmConfig = getDefaultLLMConfig();
             if (!llmConfig) {
                 setError("请先在设置中配置 LLM 模型");
                 return;
@@ -99,7 +97,7 @@ const InsightPopup = ({
                         );
                     },
                     () => { },
-                    (endData) => {
+                    () => {
                         setIsStreaming(false);
                     },
                     (streamError) => {
@@ -117,7 +115,7 @@ const InsightPopup = ({
         };
 
         fetchInsight();
-    }, [initialText, token, user?.llm_configs]);
+    }, [initialText, token, getDefaultLLMConfig]);
 
     // 拖拽逻辑
     const handleMouseDown = (e: React.MouseEvent) => {

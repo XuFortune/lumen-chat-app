@@ -34,6 +34,8 @@ export const get = <T>(endpoint: string): Promise<T> =>
     apiClient<T>(endpoint, { method: 'GET' });
 export const post = <T>(endpoint: string, data?: any): Promise<T> =>
     apiClient<T>(endpoint, { method: 'POST', body: JSON.stringify(data) });
+export const put = <T>(endpoint: string, data?: any): Promise<T> =>
+    apiClient<T>(endpoint, { method: 'PUT', body: JSON.stringify(data) });
 export const del = <T>(endpoint: string): Promise<T> =>
     apiClient<T>(endpoint, { method: 'DELETE' });
 export const patch = <T>(endpoint: string, data?: any): Promise<T> =>

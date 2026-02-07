@@ -3,7 +3,6 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../../services/authService';
 import type { LoginRequest } from '../../types';
 import { AuthLayout } from '../../components/layout/AuthLayout';
-import { useAuthStore } from '../../store/useAuthStore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
@@ -30,8 +29,7 @@ export const Login = () => {
         setLoading(true);
         setError(null);
         try {
-            const { token, username } = await authService.login(formData);
-            useAuthStore.getState().login(token, username)
+            await authService.login(formData);
             navigate('/app'); // 登录成功跳转主界面
             console.log('登录成功')
         } catch (err: any) {

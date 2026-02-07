@@ -112,6 +112,16 @@ const ChatContentArea = () => {
         setIsInsightPopupOpen(true);
     }, []);
 
+    // 获取默认 LLM 配置（优先选择 isDefault: true，否则选择第一个）
+    const getDefaultLLMConfig = useCallback(() => {
+        if (!user?.llm_configs || user.llm_configs.length === 0) {
+            return null;
+        }
+        // 优先选择标记为默认的配置
+        const defaultConfig = user.llm_configs.find(config => config.isDefault);
+        return defaultConfig || user.llm_configs[0];
+    }, [user?.llm_configs]);
+
     // 发送消息
     const handleSendMessage = useCallback(async () => {
         const messageContent = input.trim();
@@ -122,21 +132,12 @@ const ChatContentArea = () => {
         const currentMessages = currentConversationId
             ? messages[currentConversationId] || []
             : [];
-        // 目前从env中获取llmconfig
-        const provider = import.meta.env.VITE_LLM_CONFIG_PROVIDER
-        const model = import.meta.env.VITE_LLM_COMFIG_MODEL;
-        const apiKey = import.meta.env.VITE_LLM_CONFIG_API_KEY;
-        const baseUrl = import.meta.env.VITE_LLM_CONFIG_BASE_URL;
 
-        const llmConfig = user?.llm_configs?.[0] || {
-            provider,
-            model,
-            apiKey,
-            baseUrl,
-        };
+        // 从账号配置获取 LLM 配置
+        const llmConfig = getDefaultLLMConfig();
 
         if (!llmConfig) {
-            setError("Please configure LLM settings first");
+            setError("请先在设置中配置 LLM 模型");
             return;
         }
 
@@ -232,7 +233,7 @@ const ChatContentArea = () => {
         token,
         currentConversationId,
         messages,
-        user?.llm_configs,
+        getDefaultLLMConfig,
         addMessage,
         setStreamingMessage,
         updateStreamingMessage,

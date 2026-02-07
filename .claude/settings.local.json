@@ -4,7 +4,11 @@
       "Bash(netstat:*)",
       "Bash(findstr:*)",
       "Bash(docker exec:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(pnpm run dev:api:*)",
+      "Bash(dir:*)",
+      "Bash(npm run build:*)",
+      "Bash(pnpm --filter frontend add:*)"
     ]
   }
 }

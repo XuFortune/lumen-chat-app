@@ -1,10 +1,23 @@
 // src/types/index.ts
 
+// ===== LLM 配置相关 =====
+export type LLMProvider = 'openai' | 'gemini';
+
+export interface LLMConfig {
+    id?: string;
+    provider: LLMProvider;
+    model: string;
+    apiKey: string;
+    baseUrl?: string; // OpenAI 兼容需要
+    isDefault?: boolean;
+    createdAt?: string;
+}
+
 // ===== 用户相关 =====
 export interface User {
     id: string;
     username: string;
-    llm_configs: Record<string, any> | null; // PRD 中是 JSONB
+    llm_configs: LLMConfig[] | null;
     created_at: string; // ISO 8601 timestamp
     updated_at: string;
 }

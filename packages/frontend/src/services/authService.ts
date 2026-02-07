@@ -1,10 +1,10 @@
-import { post } from "./apiClient";
+import { post, put } from "./apiClient";
 import { useAuthStore } from "../store/useAuthStore";
-import type { LoginRequest, RegisterRequest, AuthResponse } from "../types";
+import type { LoginRequest, RegisterRequest, LoginResponseData, User } from "../types";
 
 export const authService = {
-    async login(credentials: LoginRequest): Promise<AuthResponse> {
-        const data = await post('/auth/login', credentials)
+    async login(credentials: LoginRequest): Promise<LoginResponseData> {
+        const data = await post<LoginResponseData>('/auth/login', credentials)
         useAuthStore.getState().login(data.token, data.user)
         return data
     },
@@ -13,5 +13,14 @@ export const authService = {
     },
     logout(): void {
         useAuthStore.getState().logout()
+    },
+    async updateLLMConfigs(llmConfigs: any[]): Promise<User> {
+        const data = await put<User>('/user/llm-configs', { llm_configs: llmConfigs })
+        // 更新 store 中的用户信息
+        const token = useAuthStore.getState().token
+        if (token) {
+            useAuthStore.getState().login(token, data)
+        }
+        return data
     }
 }
