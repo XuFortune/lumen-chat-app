@@ -1,23 +1,19 @@
 // packages/frontend/src/components/conversation/ChatContentArea.tsx
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Button } from "@/components/ui/button";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
 import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useState, useCallback, useRef } from "react";
 import { conversationService } from "@/services/conversationService";
 import type { ChatStreamRequest } from "@/services/conversationService";
-import InsightPopup from "./InsightPopup";
 import ChatInputArea from "./ChatInputArea";
 import { MessageBubble } from "./MessageBubble";
 import { Sparkles } from 'lucide-react';
+import { SelectionProvider, useSelectionContext } from "./SelectionManager";
+import { useTextSelection } from "@/hooks/useTextSelection";
+import { SelectionToolbar } from "./SelectionToolbar";
+import InsightPopup from "./InsightPopup";
 
-const ChatContentArea = () => {
-
+const ChatContentAreaInner = () => {
     const {
         currentConversationId,
         conversations,
@@ -25,11 +21,13 @@ const ChatContentArea = () => {
         addMessage,
         setStreamingMessage,
         updateStreamingMessage,
-        setCurrentConversationId,
         updateMessageId,
         updateMessageConversationId,
         loadConversations,
     } = useConversationStore();
+
+    // 划词状态管理
+    const { selectText } = useSelectionContext();
 
     const { token, user } = useAuthStore();
     const [input, setInput] = useState("");
@@ -37,19 +35,26 @@ const ChatContentArea = () => {
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [isLanding, setIsLanding] = useState(false);
-
-    // 浮窗智解相关状态
-    const [selectedText, setSelectedText] = useState("");
-    const [popoverPosition, setPopoverPosition] = useState({ left: 0, top: 0 });
-    const [isPopoverOpen, setIsPopoverOpen] = useState(false);
-    const [isInsightPopupOpen, setIsInsightPopupOpen] = useState(false);
     const chatContainerRef = useRef<HTMLDivElement>(null);
-    const savedRangeRef = useRef<Range | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+    // 划词监听
+    useTextSelection({
+        enabled: true,
+        minLength: 2,
+        maxLength: 500,
+        delay: 150,
+        excludeSelectors: ["input", "textarea", "[contenteditable]"],
+        toolbarSize: { width: 150, height: 36 },
+        onSelectionChange: (info) => {
+            if (info) {
+                selectText(info);
+            }
+        },
+    });
 
     // 滚动到底部的函数
     const scrollToBottom = useCallback(() => {
-        // 找到 ScrollArea 的 viewport 元素
         const viewport = scrollAreaRef.current?.querySelector(
             '[data-radix-scroll-area-viewport]'
         ) as HTMLElement;
@@ -79,13 +84,10 @@ const ChatContentArea = () => {
                     .setMessages(currentConversationId, data);
                 setError(null);
 
-                // 消息加载完成后，显示 landing 并滚动到底部
                 if (data.length > 0) {
                     setIsLanding(true);
-                    // 使用 requestAnimationFrame 确保内容已渲染
                     requestAnimationFrame(() => {
                         scrollToBottom();
-                        // 短暂延迟后移除 landing 遮罩
                         setTimeout(() => {
                             setIsLanding(false);
                         }, 100);
@@ -102,49 +104,11 @@ const ChatContentArea = () => {
         loadMessages();
     }, [currentConversationId, scrollToBottom]);
 
-    // 划词监听逻辑
-    const handleMouseUp = useCallback(() => {
-        const selection = window.getSelection();
-        if (!selection || !chatContainerRef.current) return;
-
-        const selectedString = selection.toString().trim();
-        if (!selectedString) {
-            savedRangeRef.current = null;
-            setIsPopoverOpen(false);
-            return;
-        }
-
-        const range = selection.getRangeAt(0);
-        const isInsideChat = chatContainerRef.current.contains(
-            range.commonAncestorContainer
-        );
-        if (!isInsideChat) {
-            savedRangeRef.current = null;
-            setIsPopoverOpen(false);
-            return;
-        }
-
-        savedRangeRef.current = range.cloneRange();
-        setSelectedText(selectedString);
-
-        const rect = range.getBoundingClientRect();
-        setPopoverPosition({ left: rect.right, top: rect.bottom });
-
-        setIsPopoverOpen(true);
-    }, []);
-
-    // 处理“解释”点击
-    const handleExplain = useCallback(() => {
-        setIsPopoverOpen(false);
-        setIsInsightPopupOpen(true);
-    }, []);
-
-    // 获取默认 LLM 配置（优先选择 isDefault: true，否则选择第一个）
+    // 获取默认 LLM 配置
     const getDefaultLLMConfig = useCallback(() => {
         if (!user?.llm_configs || user.llm_configs.length === 0) {
             return null;
         }
-        // 优先选择标记为默认的配置
         const defaultConfig = user.llm_configs.find(config => config.isDefault);
         return defaultConfig || user.llm_configs[0];
     }, [user?.llm_configs]);
@@ -160,7 +124,6 @@ const ChatContentArea = () => {
             ? messages[currentConversationId] || []
             : [];
 
-        // 从账号配置获取 LLM 配置
         const llmConfig = getDefaultLLMConfig();
 
         if (!llmConfig) {
@@ -264,7 +227,6 @@ const ChatContentArea = () => {
         addMessage,
         setStreamingMessage,
         updateStreamingMessage,
-        setCurrentConversationId,
         updateMessageConversationId,
         loadConversations,
         updateMessageId,
@@ -324,50 +286,13 @@ const ChatContentArea = () => {
         <div
             className="flex h-full flex-col relative bg-transparent"
             ref={chatContainerRef}
-            onMouseUp={handleMouseUp}
             data-chat-container
         >
-            <Popover
-                open={isPopoverOpen}
-                onOpenChange={setIsPopoverOpen}
-                modal={false}
-            >
-                <PopoverTrigger asChild>
-                    <div style={{ display: "none" }} />
-                </PopoverTrigger>
-                <PopoverContent
-                    className="w-auto p-1 shadow-2xl z-50 rounded-lg"
-                    style={{
-                        position: "absolute",
-                        left: `${popoverPosition.left}px`,
-                        top: `${popoverPosition.top}px`,
-                    }}
-                    align="start"
-                    side="top"
-                    onOpenAutoFocus={(e) => e.preventDefault()}
-                >
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={handleExplain}
-                        className="text-xs h-7"
-                    >
-                        <Sparkles className="mr-1 h-3 w-3 text-primary" />
-                        Explain
-                    </Button>
-                </PopoverContent>
-            </Popover>
+            {/* 划词工具栏 */}
+            <SelectionToolbar onCopy={() => console.log("已复制")} />
 
-            {isInsightPopupOpen && (
-                <InsightPopup
-                    initialText={selectedText}
-                    initiaPosition={{
-                        x: `${popoverPosition.left}`,
-                        y: `${popoverPosition.top}`,
-                    }}
-                    onClose={() => setIsInsightPopupOpen(false)}
-                />
-            )}
+            {/* 浮窗智解 */}
+            <InsightPopup />
 
             {/* Landing 遮罩 */}
             {isLanding && (
@@ -404,6 +329,15 @@ const ChatContentArea = () => {
                 </div>
             </div>
         </div>
+    );
+};
+
+// 用 SelectionProvider 包裹
+const ChatContentArea = () => {
+    return (
+        <SelectionProvider>
+            <ChatContentAreaInner />
+        </SelectionProvider>
     );
 };
 
