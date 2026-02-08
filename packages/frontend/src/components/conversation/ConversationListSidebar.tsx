@@ -41,6 +41,16 @@ const ConversationListSidebar = () => {
     };
 
     const handleNewChat = async () => {
+        // 检查当前对话是否为空
+        const currentMessages = currentConversationId
+            ? useConversationStore.getState().messages[currentConversationId]
+            : [];
+
+        // 如果当前对话为空，不创建新对话
+        if (currentMessages && currentMessages.length === 0) {
+            return;
+        }
+
         try {
             const { conversation_id } = await conversationService.createNewConversation({})
             setCurrentConversationId(conversation_id)

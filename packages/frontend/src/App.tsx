@@ -1,13 +1,8 @@
-import "./App.css";
+import { RouterProvider } from 'react-router-dom';
+import router from './routes';
 
 function App() {
-  return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
-      <div className="text-2xl font-bold text-indigo-700 p-6 bg-white rounded-xl shadow-lg">
-        Tailwind CSS 已生效！✨
-      </div>
-    </div>
-  );
+  return <RouterProvider router={router} />;
 }
 
 export default App;
