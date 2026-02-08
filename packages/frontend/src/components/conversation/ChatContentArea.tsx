@@ -1,7 +1,6 @@
 // packages/frontend/src/components/conversation/ChatContentArea.tsx
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
     Popover,
     PopoverContent,
@@ -37,6 +36,7 @@ const ChatContentArea = () => {
     const [isStreaming, setIsStreaming] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [isLanding, setIsLanding] = useState(false);
 
     // 浮窗智解相关状态
     const [selectedText, setSelectedText] = useState("");
@@ -46,6 +46,20 @@ const ChatContentArea = () => {
     const chatContainerRef = useRef<HTMLDivElement>(null);
     const savedRangeRef = useRef<Range | null>(null);
     const scrollAreaRef = useRef<HTMLDivElement>(null);
+
+    // 滚动到底部的函数
+    const scrollToBottom = useCallback(() => {
+        // 找到 ScrollArea 的 viewport 元素
+        const viewport = scrollAreaRef.current?.querySelector(
+            '[data-radix-scroll-area-viewport]'
+        ) as HTMLElement;
+        if (viewport) {
+            viewport.scrollTo({
+                top: viewport.scrollHeight,
+                behavior: 'auto'
+            });
+        }
+    }, []);
 
     // 加载当前会话的消息
     useEffect(() => {
@@ -64,6 +78,19 @@ const ChatContentArea = () => {
                     .getState()
                     .setMessages(currentConversationId, data);
                 setError(null);
+
+                // 消息加载完成后，显示 landing 并滚动到底部
+                if (data.length > 0) {
+                    setIsLanding(true);
+                    // 使用 requestAnimationFrame 确保内容已渲染
+                    requestAnimationFrame(() => {
+                        scrollToBottom();
+                        // 短暂延迟后移除 landing 遮罩
+                        setTimeout(() => {
+                            setIsLanding(false);
+                        }, 100);
+                    });
+                }
             } catch (err) {
                 console.error("Failed to load messages:", err);
                 setError("Failed to load messages");
@@ -73,7 +100,7 @@ const ChatContentArea = () => {
         };
 
         loadMessages();
-    }, [currentConversationId]);
+    }, [currentConversationId, scrollToBottom]);
 
     // 划词监听逻辑
     const handleMouseUp = useCallback(() => {
@@ -272,41 +299,22 @@ const ChatContentArea = () => {
             ? messages[currentConversationId] || []
             : [];
 
-        // Check if the last message is from assistant and currently streaming
-        // We can pass a flag to the last message if needed, but the store handles 'isStreaming' state generally
-        // However, we need to know WHICH message is streaming to show the animation.
-        // For simplicity, we assume if isStreaming is true, the last assistant message is the one.
-
         return (
             <ScrollArea className="flex-1 px-4 py-6" ref={scrollAreaRef}>
                 <div className="mx-auto max-w-5xl space-y-6 pb-4">
-                    {isLoading ? (
-                        <div className="space-y-8 pt-8">
-                            <div className="flex items-start gap-4">
-                                <Skeleton className="h-8 w-8 rounded-full" />
-                                <div className="space-y-2 flex-1">
-                                    <Skeleton className="h-4 w-3/4" />
-                                    <Skeleton className="h-4 w-1/2" />
-                                </div>
-                            </div>
-                        </div>
-                    ) : (
-                        <>
-                            {renderError()}
-                            {currentMessages.map((msg, index) => {
-                                const isLast = index === currentMessages.length - 1;
-                                const isStreamingThis = isStreaming && isLast && msg.role === 'assistant';
-                                return (
-                                    <MessageBubble
-                                        key={msg.id}
-                                        role={msg.role}
-                                        content={msg.content}
-                                        isStreaming={isStreamingThis}
-                                    />
-                                );
-                            })}
-                        </>
-                    )}
+                    {renderError()}
+                    {currentMessages.map((msg, index) => {
+                        const isLast = index === currentMessages.length - 1;
+                        const isStreamingThis = isStreaming && isLast && msg.role === 'assistant';
+                        return (
+                            <MessageBubble
+                                key={msg.id}
+                                role={msg.role}
+                                content={msg.content}
+                                isStreaming={isStreamingThis}
+                            />
+                        );
+                    })}
                 </div>
             </ScrollArea>
         );
@@ -359,6 +367,20 @@ const ChatContentArea = () => {
                     }}
                     onClose={() => setIsInsightPopupOpen(false)}
                 />
+            )}
+
+            {/* Landing 遮罩 */}
+            {isLanding && (
+                <div className="absolute inset-0 bg-background z-50 flex items-center justify-center">
+                    <div className="flex flex-col items-center gap-4">
+                        <div className="h-8 w-8 rounded-full bg-primary/20 flex items-center justify-center animate-pulse">
+                            <Sparkles className="h-4 w-4 text-primary" />
+                        </div>
+                        <p className="text-sm text-muted-foreground animate-pulse">
+                            Loading conversation...
+                        </p>
+                    </div>
+                </div>
             )}
 
             {conversations.length === 0 && currentConversationId === null

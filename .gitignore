@@ -21,3 +21,5 @@ docker-compose.override.yml
 *.swp
 *~
 LIST_STRUCTURE.md
+
+.claude
