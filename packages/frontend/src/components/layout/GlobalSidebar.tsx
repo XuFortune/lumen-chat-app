@@ -1,11 +1,12 @@
 import {
     MessageSquare,
     Settings,
-    User,
+    Languages,
     LogOut,
     Plus
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
 import {
     DropdownMenu,
     DropdownMenuContent,
@@ -48,13 +49,6 @@ export const GlobalSidebar = () => {
 
             {/* Navigation Items */}
             <nav className="flex-1 flex flex-col items-center gap-4 w-full px-2">
-                <NavButton
-                    icon={<Plus size={22} />}
-                    label="New Chat"
-                    onClick={() => navigate('/app/chat')} // Ideally should trigger new chat logic
-                    active={false}
-                    className="bg-primary/10 text-primary hover:bg-primary/20 mb-4"
-                />
 
                 <NavButton
                     icon={<MessageSquare size={20} />}
@@ -64,11 +58,10 @@ export const GlobalSidebar = () => {
                 />
 
                 <NavButton
-                    icon={<User size={20} />}
-                    label="Profile"
-                    active={isActive('/app/profile')}
-                    onClick={() => {/* Placeholder */ }}
-                    disabled
+                    icon={<Languages size={20} />}
+                    label="Translate"
+                    active={isActive('/app/translate')}
+                    onClick={() => toast.info('敬请期待')}
                 />
             </nav>
 
@@ -135,9 +128,6 @@ const NavButton = ({ icon, label, active, onClick, disabled, className }: NavBut
             title={label}
         >
             {icon}
-            {active && (
-                <span className="absolute -right-1 top-1 h-2 w-2 rounded-full bg-white ring-2 ring-primary" />
-            )}
         </Button>
     )
 }
