@@ -62,8 +62,18 @@ export interface Conversation {
 export interface Message {
     conversation_id: string | null,
     id: string;
-    role: 'user' | 'assistant';
+    role: 'user' | 'assistant' | 'tool'; // added tool
     content: string;
     created_at?: string;
+    // New fields for tool calls
+    tool_calls?: {
+        id: string;
+        name: string;
+        args: any;
+        result?: string;
+        is_error?: boolean;
+    }[];
+    tool_call_id?: string; // for role: 'tool'
+    name?: string; // for role: 'tool'
 }
 

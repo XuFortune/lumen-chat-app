@@ -50,8 +50,8 @@ class FatalError extends Error {
 }
 
 export const conversationService = {
-    async createNewConversation(body:any):Promise<any>{
-        return post('/chat/new',body)
+    async createNewConversation(body: any): Promise<any> {
+        return post('/chat/new', body)
     },
     // 获取对话列表
     async getConversations(): Promise<Conversation[]> {
@@ -75,6 +75,8 @@ export const conversationService = {
         onChunk: OnChunkCallback,
         onStart: OnStartCallback,
         onEnd: OnEndCallback,
+        onToolCall: (data: any) => void,
+        onToolResult: (data: any) => void,
         onError: OnErrorCallback,
         token: string
     ): Promise<void> {
@@ -88,20 +90,43 @@ export const conversationService = {
 
             onmessage(event) {
                 try {
-                    const data = JSON.parse(event.data) as ChatStreamResponse;
-                    if (data.event === 'start') {
-                        onStart({
-                            conversation_id: data.conversation_id,
-                            user_message_id: data.user_message_id
-                        })
-                    }
-                    else if (data.event === 'end') {
-                        onEnd({
-                            conversation_id: data.conversation_id,
-                            message_id: data.message_id
-                        });
-                    } else if (data.chunk) {
-                        onChunk(data.chunk);
+                    const data = JSON.parse(event.data);
+
+                    switch (data.event) {
+                        case 'start':
+                            onStart({
+                                conversation_id: data.conversation_id,
+                                user_message_id: data.user_message_id
+                            });
+                            break;
+                        case 'end':
+                            onEnd({
+                                conversation_id: data.conversation_id,
+                                message_id: data.message_id
+                            });
+                            break;
+                        case 'chunk':
+                            // explicitly handle chunk event if sent this way
+                            if (data.chunk) onChunk(data.chunk);
+                            break;
+                        // New Agent Events
+                        case 'turn_start':
+                            // optionally handle turn start
+                            break;
+                        case 'tool_call':
+                            // Handle tool call - likely need a new callback
+                            onToolCall?.(data);
+                            break;
+                        case 'tool_result':
+                            // Handle tool result - likely need a new callback
+                            onToolResult?.(data);
+                            break;
+                        default:
+                            // Fallback for implicit chunk (original behavior)
+                            if (data.chunk) {
+                                onChunk(data.chunk);
+                            }
+                            break;
                     }
                 } catch (error) {
                     console.error('Failed to parse SSE data:', error);

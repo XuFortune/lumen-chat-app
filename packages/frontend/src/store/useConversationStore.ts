@@ -21,6 +21,9 @@ interface ConversationState {
   updateMessageConversationId: (oldConvId: string, newConvId: string) => void;
   setStreamingMessage: (id: string | null) => void;
   updateStreamingMessage: (chunk: string) => void;
+  // Tool Actions
+  addToolCall: (convId: string | null, toolCall: { id: string; name: string; args: any }) => void;
+  updateToolResult: (convId: string | null, toolCallId: string, result: string, isError: boolean) => void;
   renameConversation: (convId: string, newTitle: string) => void;
   addNewConversation: (initialMessages?: Message[]) => void;
   // 异步 Actions（完整业务封装）
@@ -91,7 +94,7 @@ export const useConversationStore = create<ConversationState>()(
           );
 
           // 删除旧的 temp 会话（可选）
-        //   delete updatedMessages[oldConvId];
+          //   delete updatedMessages[oldConvId];
 
           return {
             messages: updatedMessages,
@@ -116,6 +119,59 @@ export const useConversationStore = create<ConversationState>()(
                   : msg
               ),
             },
+          };
+        });
+      },
+
+      addToolCall: (convId, toolCall) => {
+        const targetId = convId || get().currentConversationId;
+        const msgId = get().streamingMessageId;
+        if (!targetId || !msgId) return;
+
+        set((state) => {
+          const convMessages = state.messages[targetId] || [];
+          return {
+            messages: {
+              ...state.messages,
+              [targetId]: convMessages.map((msg) => {
+                if (msg.id === msgId) {
+                  const currentCalls = msg.tool_calls || [];
+                  return {
+                    ...msg,
+                    tool_calls: [...currentCalls, { ...toolCall, args: toolCall.args }]
+                  };
+                }
+                return msg;
+              })
+            }
+          };
+        });
+      },
+
+      updateToolResult: (convId, toolCallId, result, isError) => {
+        const targetId = convId || get().currentConversationId;
+        const msgId = get().streamingMessageId; // The assistant message doing the calling
+        if (!targetId || !msgId) return;
+
+        set((state) => {
+          const convMessages = state.messages[targetId] || [];
+          return {
+            messages: {
+              ...state.messages,
+              [targetId]: convMessages.map((msg) => {
+                if (msg.id === msgId && msg.tool_calls) {
+                  return {
+                    ...msg,
+                    tool_calls: msg.tool_calls.map(tc =>
+                      tc.id === toolCallId
+                        ? { ...tc, result, is_error: isError }
+                        : tc
+                    )
+                  };
+                }
+                return msg;
+              })
+            }
           };
         });
       },

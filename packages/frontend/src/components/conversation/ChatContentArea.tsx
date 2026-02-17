@@ -187,6 +187,25 @@ const ChatContentAreaInner = () => {
                         await loadConversations();
                     }
                 },
+                (toolCall) => {
+                    // onToolCall
+                    useConversationStore.getState().addToolCall(currentConversationId, {
+                        id: toolCall.tool_call_id,
+                        name: toolCall.tool_name,
+                        args: toolCall.tool_args
+                    });
+                    // Insert placeholder for inline rendering
+                    useConversationStore.getState().updateStreamingMessage(`\n:::tool_call:${toolCall.tool_call_id}:::\n`);
+                },
+                (toolResult) => {
+                    // onToolResult
+                    useConversationStore.getState().updateToolResult(
+                        currentConversationId,
+                        toolResult.tool_call_id,
+                        toolResult.result,
+                        toolResult.is_error
+                    );
+                },
                 (error) => {
                     console.error("Stream error:", error);
                     setStreamingMessage(null);
@@ -203,7 +222,7 @@ const ChatContentAreaInner = () => {
                 },
                 token
             );
-        } catch (err) {
+        } catch (err: any) {
             console.error("AI Engine Error:", err);
             setStreamingMessage(null);
             setIsStreaming(false);
@@ -274,6 +293,7 @@ const ChatContentAreaInner = () => {
                                 role={msg.role}
                                 content={msg.content}
                                 isStreaming={isStreamingThis}
+                                toolCalls={msg.tool_calls}
                             />
                         );
                     })}

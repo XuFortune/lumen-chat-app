@@ -1,111 +1,84 @@
-// packages/ai-engine/src/controllers/AiController.ts
-
 import { ChatOpenAI } from "@langchain/openai";
 import { ChatGoogleGenerativeAI } from "@langchain/google-genai";
-import { HumanMessage, AIMessage } from "@langchain/core/messages";
 import { Request, Response } from "express";
-import { Readable } from 'stream';
-export interface AiMessage {
-    role: 'user' | 'assistant';
-    content: string;
-}
-export interface AiConfig {
-    provider: 'openai' | 'google';
-    model: string;
-    apiKey: string;
-    baseUrl?: string;
-}
-export interface AiStreamRequest {
-    history: AiMessage[];
-    currentMessage: string;
-    config: AiConfig;
-}
-export interface AiStreamResponse {
-    chunk?: string;
-    event?: 'end';
-}
+import { agentLoop } from "../agent/agentLoop";
+import type { AiStreamRequest, AiStreamResponse } from "shared-types";
+
 export const handleAiStream = async (req: Request, res: Response) => {
     try {
         const { history, currentMessage, config } = req.body as AiStreamRequest;
-        console.log('history', history)
-        console.log('currentMessage', currentMessage)
-        console.log('config ', config)
-        // 1. 构造消息历史
-        const langChainMessages = history.map(msg =>
-            msg.role === 'user' ? new HumanMessage(msg.content) : new AIMessage(msg.content)
-        );
-        langChainMessages.push(new HumanMessage(currentMessage));
 
-        // 2. 根据 provider 选择 LLM（关键改进！）
+        console.log('[AiController] Received request:', {
+            provider: config.provider,
+            model: config.model,
+            messageLength: currentMessage.length,
+            hasApiKey: !!config.apiKey,
+            apiKeyPrefix: config.apiKey ? config.apiKey.substring(0, 3) + '...' : 'none'
+        });
+
+        // 1. Initialize LLM
         let llm;
-
         if (config.provider === 'openai') {
-            // 所有 OpenAI 兼容服务（包括 OpenAI、Groq、TogetherAI、Ollama 等）
+            // OpenAI-compatible providers
             if (!config.baseUrl) {
-                return res.status(400).json({
-                    error: "baseUrl is required for OpenAI-compatible providers"
-                });
+                return res.status(400).json({ error: "baseUrl is required for OpenAI-compatible providers" });
             }
-
             llm = new ChatOpenAI({
                 model: config.model,
-                apiKey: config.apiKey,
+                apiKey: config.apiKey, // Use apiKey directly
                 configuration: {
-                    baseURL: config.baseUrl
-                }
+                    baseURL: config.baseUrl,
+                    apiKey: config.apiKey // Redundant but safe
+                },
+                temperature: 0.7,
+                streaming: true
             });
-        }
-        else if (config.provider === 'google') {
+        } else if (config.provider === 'google') {
             // Google Gemini
             llm = new ChatGoogleGenerativeAI({
                 model: config.model,
                 apiKey: config.apiKey,
+                temperature: 0.7,
+                streaming: true
             });
-        }
-        else {
-            return res.status(400).json({
-                error: `Unsupported provider: ${config.provider}`
-            });
+        } else {
+            return res.status(400).json({ error: `Unsupported provider: ${config.provider}` });
         }
 
-        // 3. 流式处理
-        const stream = await llm.stream(langChainMessages);
-
+        // 2. Setup SSE
         res.setHeader('Content-Type', 'text/event-stream');
         res.setHeader('Cache-Control', 'no-cache');
         res.setHeader('Connection', 'keep-alive');
 
-        for await (const chunk of stream) {
-            if (chunk.content) {
-                // 注意：需要转义 JSON 字符串中的特殊字符
-                const safeContent = JSON.stringify(chunk.content);
-                res.write(`data: {"chunk": ${safeContent}}\n\n`);
-            }
-        }
+        const writeSse = (data: AiStreamResponse) => {
+            res.write(`data: ${JSON.stringify(data)}\n\n`);
+        };
 
-        res.write(`data: {"event": "end"}\n\n`);
+        // 3. Run Agent Loop
+        await agentLoop(llm, history, currentMessage, writeSse);
+
+        // 4. End Stream
+        // Note: The mock IDs are temporary. Real IDs should come from the request transparency if tracked.
+        writeSse({
+            event: "end",
+            conversation_id: "unknown",
+            message_id: "unknown"
+        });
         res.end();
 
     } catch (error: any) {
-        console.error('AI Engine Error:', error);
+        console.error('[AiController] Error:', error);
 
-        // 根据错误类型返回不同的响应
-        if (error.status === 401 || error.status === 403) {
-            return res.status(400).json({
-                code: "INVALID_API_KEY",
-                message: "Invalid API key provided"
-            });
+        // If headers not sent, return JSON error
+        if (!res.headersSent) {
+            if (error?.status === 401 || error?.status === 403) {
+                return res.status(401).json({ code: "INVALID_API_KEY", message: "Invalid API key" });
+            }
+            return res.status(500).json({ error: error.message || "Internal Server Error" });
+        } else {
+            // If stream started, send error event
+            res.write(`data: ${JSON.stringify({ event: "error", message: error.message })}\n\n`);
+            res.end();
         }
-        if (error.name === 'TimeoutError' || error.code === 'ECONNABORTED') {
-            return res.status(504).json({
-                code: "LLM_TIMEOUT",
-                message: "LLM service timeout"
-            });
-        }
-        return res.status(502).json({
-            code: "LLM_SERVICE_ERROR",
-            message: error.message || "LLM service error"
-        });
     }
-
 };
