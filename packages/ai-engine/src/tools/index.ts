@@ -43,11 +43,9 @@ export const toolRegistry = new ToolRegistry();
 
 // Auto-register tools
 import { calculatorTool } from './calculator';
-import { webSearchTool } from './webSearch';
 import { dateTimeTool } from './dateTime';
 import { unitConverterTool } from './unitConverter';
 
 toolRegistry.register(calculatorTool);
-toolRegistry.register(webSearchTool);
 toolRegistry.register(dateTimeTool);
 toolRegistry.register(unitConverterTool);

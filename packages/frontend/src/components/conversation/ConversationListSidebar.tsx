@@ -4,7 +4,6 @@ import { useConversationStore } from "@/store/useConversationStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useEffect, useMemo, useState } from "react";
 import { Trash2, Plus, MoreHorizontal } from 'lucide-react';
-import { conversationService } from "@/services/conversationService";
 import { cn } from "@/lib/utils";
 import {
     DropdownMenu,
@@ -40,10 +39,11 @@ const ConversationListSidebar = () => {
         }
     };
 
-    const handleNewChat = async () => {
+    const handleNewChat = () => {
         // 检查当前对话是否为空
+        const state = useConversationStore.getState();
         const currentMessages = currentConversationId
-            ? useConversationStore.getState().messages[currentConversationId]
+            ? state.messages[currentConversationId]
             : [];
 
         // 如果当前对话为空，不创建新对话
@@ -51,13 +51,8 @@ const ConversationListSidebar = () => {
             return;
         }
 
-        try {
-            const { conversation_id } = await conversationService.createNewConversation({})
-            setCurrentConversationId(conversation_id)
-            loadConversations()
-        } catch (err) {
-            console.error(err)
-        }
+        // 使用 store 的本地方法创建，避免不必要的后端请求
+        state.addNewConversation();
     };
 
     // Group conversations by time

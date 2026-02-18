@@ -35,9 +35,22 @@ export const getConversationMessages = async (req: Request, res: Response): Prom
         const messages = await Message.findAll({
             where: { conversation_id: id },
             order: [['created_at', 'ASC']],
-            attributes: ['id', 'role', 'content', 'created_at']
+            attributes: ['id', 'role', 'content', 'created_at', 'metadata']
         })
-        res.json(success(messages))
+
+        const formattedMessages = messages.map(msg => {
+            const plainMsg = msg.toJSON();
+            // If metadata has tool_calls, move it to top level
+            if (plainMsg.metadata && plainMsg.metadata.tool_calls) {
+                return {
+                    ...plainMsg,
+                    tool_calls: plainMsg.metadata.tool_calls
+                };
+            }
+            return plainMsg;
+        });
+
+        res.json(success(formattedMessages))
     } catch (error) {
         console.error('Error fetching conversation messages:', error);
         res.status(500).json(failure('Internal server error', 'INTERNAL_ERROR'));

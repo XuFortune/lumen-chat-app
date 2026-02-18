@@ -138,6 +138,12 @@ export const handleAiStreamProxy = async (
                 res.status(404).json(failure('Conversation not found', 'NOT_FOUND'));
                 return;
             }
+            // 如果是默认标题，则根据第一条消息更新标题
+            if (existingConv.title === '新对话') {
+                await existingConv.update({
+                    title: currentMessage.substring(0, 20)
+                });
+            }
             dbConversationId = conversation_id
         } else {
             const newConv = await Conversation.create({
@@ -185,6 +191,8 @@ export const handleAiStreamProxy = async (
             user_message_id: userMessageId
         })}\n\n`);
 
+        let toolCalls: any[] = [];
+
         aiResponse.data.on('data', (chunk: Buffer) => {
             const chunkStr = chunk.toString();
             buffer += chunkStr
@@ -196,6 +204,24 @@ export const handleAiStreamProxy = async (
                 if (parsedData) {
                     if (parsedData.chunk !== undefined) {
                         fullResponse += parsedData.chunk
+                        res.write(sseEvent)
+                    } else if (parsedData.event === 'tool_call') {
+                        // Capture tool call
+                        toolCalls.push({
+                            id: parsedData.tool_call_id,
+                            name: parsedData.tool_name,
+                            args: parsedData.tool_args
+                        });
+                        // Append token to fullResponse for persistence (inline rendering)
+                        fullResponse += `\n:::tool_call:${parsedData.tool_call_id}:::\n`;
+                        res.write(sseEvent)
+                    } else if (parsedData.event === 'tool_result') {
+                        // Update tool call with result
+                        const tc = toolCalls.find(t => t.id === parsedData.tool_call_id);
+                        if (tc) {
+                            tc.result = parsedData.result;
+                            tc.is_error = parsedData.is_error;
+                        }
                         res.write(sseEvent)
                     } else if (parsedData.event === 'end') {
                         console.log('Intercepted "end" event from AI engine, will send enhanced version later.');
@@ -222,7 +248,8 @@ export const handleAiStreamProxy = async (
                 const assistantMessage = await Message.create({
                     conversation_id: dbConversationId,
                     role: 'assistant',
-                    content: fullResponse
+                    content: fullResponse,
+                    metadata: toolCalls.length > 0 ? { tool_calls: toolCalls } : null
                 })
                 await Conversation.update(
                     { updated_at: new Date() },
