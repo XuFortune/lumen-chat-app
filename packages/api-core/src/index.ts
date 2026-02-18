@@ -3,6 +3,8 @@ import 'dotenv/config'
 import express, { Request, Response } from 'express';
 import cors from 'cors'
 import router from './routes';
+import db from './models';
+const { sequelize } = db;
 
 // 1. 初始化 Express 应用
 const app = express();
@@ -27,6 +29,11 @@ app.get('/api/v1/health', (req: Request, res: Response) => {
 // })
 
 // 4. 启动服务器并监听指定端口
-app.listen(PORT, () => {
-  console.log(`🚀 API Core server is running at http://localhost:${PORT}`);
+sequelize.sync({ alter: true }).then(() => {
+  console.log('Database synced');
+  app.listen(PORT, () => {
+    console.log(`🚀 API Core server is running at http://localhost:${PORT}`);
+  });
+}).catch((err) => {
+  console.error('Failed to sync database:', err);
 });

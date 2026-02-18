@@ -6,7 +6,7 @@ import type { AiStreamRequest, AiStreamResponse } from "shared-types";
 
 export const handleAiStream = async (req: Request, res: Response) => {
     try {
-        const { history, currentMessage, config } = req.body as AiStreamRequest;
+        const { history, currentMessage, config, longTermMemory } = req.body as AiStreamRequest;
 
         console.log('[AiController] Received request:', {
             provider: config.provider,
@@ -55,7 +55,7 @@ export const handleAiStream = async (req: Request, res: Response) => {
         };
 
         // 3. Run Agent Loop
-        await agentLoop(llm, history, currentMessage, writeSse);
+        await agentLoop(llm, history, currentMessage, writeSse, longTermMemory);
 
         // 4. End Stream
         // Note: The mock IDs are temporary. Real IDs should come from the request transparency if tracked.

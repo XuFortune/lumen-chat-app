@@ -13,10 +13,12 @@ import type { AiStreamResponse } from "shared-types";
 const MAX_TURNS = 10;
 
 // System prompt injected at the beginning
-const SYSTEM_PROMPT = `你是 Lumen AI Assistant，一个具备自主工具调用能力的智能助手。
+const BASE_SYSTEM_PROMPT = `你是 Lumen AI Assistant，一个具备自主工具调用能力的智能助手。
 当用户的问题需要外部信息、数学计算或特定功能时，你应该主动使用工具获取信息，然后基于工具返回的结果给出准确回答。
 如果不需要工具，直接回答即可。
 **请用中文回答用户的问题。**`;
+
+import { memoryManager } from "./memory";
 
 type SSEWriter = (data: AiStreamResponse) => void;
 
@@ -40,11 +42,18 @@ export async function agentLoop(
     llm: any, // Typed as any to support bindTools flexibility across providers
     history: Array<{ role: string; content: string }>,
     currentMessage: string,
-    writeSse: SSEWriter
+    writeSse: SSEWriter,
+    longTermMemory?: string // [NEW] Accept long-term memory
 ): Promise<string> {
 
     // 1. Prepare initial messages
-    const messages: BaseMessage[] = [new SystemMessage(SYSTEM_PROMPT)];
+    // Inject long-term memory into System Prompt if available
+    let systemPrompt = BASE_SYSTEM_PROMPT;
+    if (longTermMemory) {
+        systemPrompt += `\n\n## Long-term Memory\n${longTermMemory}`;
+    }
+
+    const messages: BaseMessage[] = [new SystemMessage(systemPrompt)];
     messages.push(...convertHistory(history));
     messages.push(new HumanMessage(currentMessage));
 
@@ -143,6 +152,49 @@ export async function agentLoop(
         // 3d. Reflection / Continuation
         // Injects a hidden prompt to encourage the model to process the tool output
         // messages.push(new HumanMessage("Reflect on the results above and decide the next step or provide the final answer."));
+    }
+
+    // [NEW] 4. Memory Consolidation Check
+    // We check if the history length (before this turn) + new exchanges exceeds the window
+    // For simplicity, we pass the raw history + current interactions
+    // Note: 'history' here is the past conversation. 'messages' contains recent context.
+    const totalHistoryLength = history.length + 1; // +1 for current user message
+
+    if (memoryManager.shouldConsolidate(totalHistoryLength)) {
+        console.log(`[AgentLoop] Triggering memory consolidation (Length: ${totalHistoryLength})`);
+
+        // Per "Fire-and-Forget" strategy, we perform this concurrently or emit an event
+        // But here we need to use the LLM to generate the summary.
+        // To avoid blocking the response (which is already sent via SSE),
+        // we normally would do this in background.
+        // HOWEVER, since 'agentLoop' is async and the caller awaits it, 
+        // we should try not to delay the 'end' event too much, OR the controller sends 'end' first?
+        // Actually, the controller awaits agentLoop then sends 'end'.
+        // So we will emit the consolidation event BEFORE the loop returns.
+
+        // Construct the full conversation for the manager to process
+        // We combine the input 'history' plus the 'currentMessage' and the 'fullResponse'
+        const conversationToConsolidate = [
+            ...history,
+            { role: 'user', content: currentMessage },
+            { role: 'assistant', content: fullResponse }
+        ];
+
+        // Perform consolidation
+        // Note: We use the same 'llm' instance.
+        memoryManager.consolidate(conversationToConsolidate, longTermMemory || "", llm)
+            .then(result => {
+                if (result.memory_update || result.history_entry) {
+                    console.log('[AgentLoop] Consolidation successful, emitting event.');
+                    writeSse({
+                        event: 'memory_consolidation',
+                        payload: result
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('[AgentLoop] Consolidation error:', err);
+            });
     }
 
     return fullResponse;

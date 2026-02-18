@@ -16,6 +16,7 @@ export interface AiStreamRequest {
     history: AiMessage[];
     currentMessage: string;
     config: AiConfig;
+    longTermMemory?: string; // [NEW] Current User Profile
 }
 
 // Tool Definitions
@@ -79,6 +80,14 @@ export interface AiStreamAgentCompleteEvent {
     total_turns: number;
 }
 
+export interface AiStreamConsolidationEvent {
+    event: 'memory_consolidation';
+    payload: {
+        memory_update?: string;
+        history_entry?: string;
+    };
+}
+
 export type AiStreamResponse =
     | AiStreamStartEvent
     | AiStreamEndEvent
@@ -87,4 +96,5 @@ export type AiStreamResponse =
     | AiStreamTurnStartEvent
     | AiStreamToolCallEvent
     | AiStreamToolResultEvent
-    | AiStreamAgentCompleteEvent;
+    | AiStreamAgentCompleteEvent
+    | AiStreamConsolidationEvent;

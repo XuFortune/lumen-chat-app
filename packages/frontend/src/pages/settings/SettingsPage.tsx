@@ -2,13 +2,23 @@ import { useState, useEffect } from "react";
 import { useAuthStore } from "@/store/useAuthStore";
 import { authService } from "@/services/authService";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { LLMConfig, LLMProvider } from "@/types";
 import {
     LLMConfigCard,
     LLMConfigDialog,
     AccountCard,
-    AboutCard
+    AboutCard,
+    MemorySettings // [NEW]
 } from "@/components/settings";
+import { Button } from "@/components/ui/button";
+import { Brain } from "lucide-react";
+import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+} from "@/components/ui/dialog";
 
 const SettingsPage = () => {
     const { user } = useAuthStore();
@@ -25,6 +35,8 @@ const SettingsPage = () => {
         apiKey: "",
         baseUrl: "",
     });
+
+    const [isMemoryOpen, setIsMemoryOpen] = useState(false);
 
     // 加载配置
     useEffect(() => {
@@ -174,6 +186,25 @@ const SettingsPage = () => {
                         </div>
                     )}
 
+                    {/* Custom Card for Memory Management */}
+                    {/* Memory Management Card */}
+                    <Card className="backdrop-blur-sm bg-card/50">
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <Brain className="h-5 w-5" />
+                                记忆管理
+                            </CardTitle>
+                            <CardDescription>
+                                查看和编辑 AI 对你的长期记忆
+                            </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <Button onClick={() => setIsMemoryOpen(true)}>
+                                管理记忆
+                            </Button>
+                        </CardContent>
+                    </Card>
+
                     {/* LLM 配置卡片 */}
                     <LLMConfigCard
                         configs={configs}
@@ -191,6 +222,18 @@ const SettingsPage = () => {
                     <AboutCard />
                 </div>
             </ScrollArea>
+
+            {/* Memory Dialog */}
+            <Dialog open={isMemoryOpen} onOpenChange={setIsMemoryOpen}>
+                <DialogContent className="max-w-3xl h-[80vh] flex flex-col">
+                    <DialogHeader>
+                        <DialogTitle>用户记忆</DialogTitle>
+                    </DialogHeader>
+                    <div className="flex-1 overflow-auto p-1">
+                        <MemorySettings />
+                    </div>
+                </DialogContent>
+            </Dialog>
 
             {/* 添加/编辑配置对话框 */}
             <LLMConfigDialog

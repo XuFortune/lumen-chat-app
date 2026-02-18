@@ -3,3 +3,4 @@ export { LLMConfigCard } from './LLMConfigCard';
 export { LLMConfigDialog } from './LLMConfigDialog';
 export { AccountCard } from './AccountCard';
 export { AboutCard } from './AboutCard';
+export { default as MemorySettings } from './MemorySettings';

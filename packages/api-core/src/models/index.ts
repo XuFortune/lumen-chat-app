@@ -22,6 +22,10 @@ import { initConversation } from './Conversation';
 const Conversation = initConversation(sequelize)
 import { initMessage } from './Message';
 const Message = initMessage(sequelize)
+import { initUserMemory } from './UserMemory';
+const UserMemory = initUserMemory(sequelize);
+import { initConversationSummary } from './ConversationSummary';
+const ConversationSummary = initConversationSummary(sequelize);
 
 
 // 如果有其他模型，继续 import...
@@ -32,5 +36,5 @@ const Message = initMessage(sequelize)
 // User.hasMany(Post);
 
 // 统一导出
-export { User, Conversation, Message, };
-export default { User, Conversation, Message, sequelize, Sequelize };
+export { User, Conversation, Message, UserMemory, ConversationSummary };
+export default { User, Conversation, Message, UserMemory, ConversationSummary, sequelize, Sequelize };

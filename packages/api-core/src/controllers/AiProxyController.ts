@@ -4,7 +4,8 @@ import axios, { AxiosError } from "axios";
 import { authMiddleware } from "../middleware";
 import { success, failure } from "../utils";
 import { Json } from "sequelize/types/utils";
-import { Conversation, Message } from '../models'
+import { Conversation, Message, UserMemory, ConversationSummary } from '../models'
+import { Op } from 'sequelize';
 
 
 interface Message {
@@ -166,6 +167,19 @@ export const handleAiStreamProxy = async (
         return;
     }
 
+    // [NEW] 1. Fetch User Memory (Long-term)
+    let longTermMemory = '';
+    try {
+        const memoryRecord = await UserMemory.findOne({ where: { user_id: userId } });
+        if (memoryRecord && memoryRecord.content) {
+            longTermMemory = memoryRecord.content;
+            console.log(`[AiProxy] User Memory loaded for user ${userId}, length: ${longTermMemory.length}`);
+        }
+    } catch (memErr) {
+        console.error('[AiProxy] Failed to load User Memory:', memErr);
+        // We continue without memory rather than failing the request
+    }
+
 
     res.setHeader('Content-Type', 'text/event-stream')
     res.setHeader('Cache-Control', 'no-cache')
@@ -177,7 +191,7 @@ export const handleAiStreamProxy = async (
     try {
         const aiResponse = await axios.post(
             'http://localhost:4001/v1/ai/stream',
-            { history, currentMessage, config },
+            { history, currentMessage, config, longTermMemory },
             {
                 responseType: 'stream',
                 timeout: 30000,
@@ -225,6 +239,50 @@ export const handleAiStreamProxy = async (
                         res.write(sseEvent)
                     } else if (parsedData.event === 'end') {
                         console.log('Intercepted "end" event from AI engine, will send enhanced version later.');
+                    } else if (parsedData.event === 'memory_consolidation') {
+                        // [NEW] Handle Memory Consolidation
+                        const payload = parsedData.payload;
+                        console.log('[AiProxy] Received One-Time Consolidation Event:', payload);
+
+                        // Perform DB updates asynchronously
+                        (async () => {
+                            try {
+                                if (payload.memory_update) {
+                                    // Upsert UserMemory
+                                    // Use findOne + update/create logic or upsert depending on Sequelize support
+                                    const [mem, created] = await UserMemory.findOrCreate({
+                                        where: { user_id: userId },
+                                        defaults: {
+                                            user_id: userId,
+                                            content: payload.memory_update
+                                        }
+                                    });
+                                    if (!created) {
+                                        // Merge or Replace? 
+                                        // The agent sends the "Updated text", so we replace.
+                                        // "Extract any new... Merge them... If no new facts, keep it as is."
+                                        // The prompt implies the output IS the new state.
+                                        await mem.update({
+                                            content: payload.memory_update,
+                                            last_consolidated_at: new Date()
+                                        });
+                                    }
+                                    console.log('[AiProxy] UserMemory updated.');
+                                }
+
+                                if (payload.history_entry) {
+                                    await ConversationSummary.create({
+                                        conversation_id: dbConversationId,
+                                        summary: payload.history_entry
+                                    });
+                                    console.log('[AiProxy] ConversationSummary created.');
+                                }
+                            } catch (consErr) {
+                                console.error('[AiProxy] Failed to persist consolidation:', consErr);
+                            }
+                        })();
+
+                        // We do NOT forward this internal event to the frontend
                     } else {
                         res.write(sseEvent)
                     }
