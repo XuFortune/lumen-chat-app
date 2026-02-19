@@ -8,10 +8,10 @@ export const AboutCard = () => {
             </CardHeader>
             <CardContent className="space-y-2 text-sm text-muted-foreground">
                 <p>Lumen Chat App</p>
-                <p>一个采用前后端分离与可插拔 AI 引擎的聊天应用</p>
+                <p>一个具有浮窗智解的 AI agent 应用</p>
                 <div className="pt-2">
                     <a
-                        href="https://github.com"
+                        href="https://github.com/XuFortune/lumen-chat-app"
                         target="_blank"
                         rel="noopener noreferrer"
                         className="text-primary hover:underline"
